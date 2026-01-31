@@ -1140,22 +1140,15 @@
         function generateCircuit() {
             const points = []; const segments = 30; const noiseZ = rng() * 100;
 
-            // ELEVATION NOISE
-            // Create a simple height map array
+            // ELEVATION HEIGHT MAP
             const heightMap = [];
             for(let i=0; i<segments; i++) {
-                // Use sine waves for rolling hills
-                // Offset by +30 to ensure track stays above the grass plane (y=-0.1)
-                const h = 30 + Math.sin(i * 0.5) * 10 + Math.cos(i * 1.2) * 15;
+                const h = 30 + Math.sin(i * 0.5) * 10 + Math.cos(i * 1.2) * 15; // +30 offset
                 heightMap.push(h);
             }
-
-            // Flatten Start/Finish area (Indices 0, 1, 2... and ...28, 29)
-            // Flatten area around start to avoid physics start glitches
-            // Start is at index 0. Let's flatten indices -3 to +3
-            const startHeight = 30; // Base height
-            for(let i=0; i<4; i++) heightMap[i] = startHeight;
-            for(let i=1; i<4; i++) heightMap[segments-i] = startHeight;
+            // Flatten Start/Finish
+            for(let i=0; i<4; i++) heightMap[i] = 30;
+            for(let i=1; i<4; i++) heightMap[segments-i] = 30;
 
             for (let i = 0; i < segments; i++) {
                 const t = (i / segments) * Math.PI * 2;
@@ -1164,54 +1157,39 @@
                 points.push(new THREE.Vector3(x, heightMap[i], z));
             }
             
-            // --- FIX FOR PIT LANE GLITCH ---
-            // Force the first few segments (around start/finish index 0) to be a straight line along Z axis.
-            // This ensures the parallel pit lane generation doesn't self-intersect or explode on a curve.
+            // Straighten start for Pits
             const startPt = points[0].clone();
-            const straightenCount = 4; // Number of control points to force straight on each side of 0
-            const spacing = 40; // Approx distance between points
-            
-            // Force points 1, 2, 3, 4 to be straight forward along Z
-            for(let i=1; i<=straightenCount; i++) {
-                // Next points
+            const spacing = 40;
+            for(let i=1; i<=4; i++) {
                 if(points[i]) points[i].copy(startPt).add(new THREE.Vector3(0, 0, i * spacing));
-                
-                // Previous points (wrap to end of array)
                 const backIdx = points.length - i;
                 if(points[backIdx]) points[backIdx].copy(startPt).add(new THREE.Vector3(0, 0, -i * spacing));
             }
-            // --------------------------------
 
             trackCurve = new THREE.CatmullRomCurve3(points, true);
             trackCurve.tension = 0.5;
             trackPoints = trackCurve.getSpacedPoints(cfg.trackRes);
             const distFirstLast = trackPoints[0].distanceTo(trackPoints[trackPoints.length-1]);
             if(distFirstLast < 1.0) trackPoints.pop();
-            
-            // Corrected: Checkpoint 0 should align with start line
-            checkpoints = [ 
-                trackCurve.getPoint(0), // CP0 = Start Line
-                trackCurve.getPoint(0.33), 
-                trackCurve.getPoint(0.66) 
-            ];
+            checkpoints = [ trackPoints[0], trackPoints[Math.floor(trackPoints.length/3)], trackPoints[Math.floor(trackPoints.length*2/3)] ];
 
             const grassColorHex = cfg.time === 'sunset' ? 0x2e3b28 : 0x2e8b57;
 
-            // Safe Ground Plane (Fills the center void)
-            const groundGeo = new THREE.PlaneGeometry(2000, 2000);
-            groundGeo.rotateX(-Math.PI/2);
+            // Safe Ground Plane (Fills the void at Y=0)
+            const groundGeo = new THREE.PlaneGeometry(2000, 2000); groundGeo.rotateX(-Math.PI/2);
             const groundMat = new THREE.MeshStandardMaterial({ color: grassColorHex, roughness: 1.0 });
-            const ground = new THREE.Mesh(groundGeo, groundMat);
-            ground.position.y = 0; // Below lowest track point (~5)
-            ground.receiveShadow = true;
-            scene.add(ground);
+            const ground = new THREE.Mesh(groundGeo, groundMat); ground.position.y = 0; ground.receiveShadow = true; scene.add(ground);
+
+            // Ground Physics (for falling off track)
+            const groundBody = new CANNON.Body({ mass: 0, material: world.defaultMaterial });
+            const groundShape = new CANNON.Plane(); groundBody.addShape(groundShape); groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+            groundBody.position.y = 0;
+            world.addBody(groundBody);
 
             const roadWidth = cfg.roadWidth;
             const trackGeo = new THREE.BufferGeometry();
             const vertices = []; const colors = []; const indices = [];
-
-            // Terrain buffers
-            const terrainVertices = []; const terrainIndices = [];
+            const terrainVertices = []; const terrainIndices = []; // Terrain buffers
 
             const cAsphalt = new THREE.Color(0x555555); const cKerbRed = new THREE.Color(0xcc0000);
             const cKerbWhite = new THREE.Color(0xffffff); const cLine = new THREE.Color(0xffffff);
@@ -1233,7 +1211,7 @@
                 // Better: Cross tangent with world up to get side, then cross side with tangent to get real up.
                 const side = new THREE.Vector3().crossVectors(tangent, up).normalize();
 
-                // Sand Traps (Fixed Height)
+                // Sand Traps (With elevation)
                 const v1 = new THREE.Vector3().subVectors(p2, p1).normalize();
                 const v2 = new THREE.Vector3().subVectors(p3, p2).normalize();
                 const crossY = v1.x * v2.z - v1.z * v2.x;
@@ -1243,13 +1221,10 @@
                     const offset = (roadWidth/2) + trapRadius + 1.0; 
                     const trapPos = p2.clone().add(side.clone().multiplyScalar(dir * offset));
                     const sandGeo = new THREE.CircleGeometry(trapRadius, 8); sandGeo.rotateX(-Math.PI/2);
-                    const sm = new THREE.Mesh(sandGeo, sandMat);
-                    sm.position.copy(trapPos);
-                    sm.position.y += 0.02; // Relative to track height
+                    const sm = new THREE.Mesh(sandGeo, sandMat); sm.position.copy(trapPos); sm.position.y += 0.02; // Relative
                     sandTrapsMesh.add(sm); sandTraps.push({ pos: trapPos, r: trapRadius });
                 }
 
-                // Track Generation
                 const w = roadWidth / 2; const kw = 2.0;
                 const offsets = [-w - kw, -w, -w + 0.5, w - 0.5, w, w + kw];
                 for(let j=0; j<offsets.length; j++) {
@@ -1259,7 +1234,7 @@
                     // But 'side' vector already handles the x/z plane.
                     // If elevation is steep, y changes.
                     const v = new THREE.Vector3().copy(p1).add(side.clone().multiplyScalar(os));
-                    vertices.push(v.x, v.y + 0.1, v.z); // Lifted to 0.1 to avoid z-fighting
+                    vertices.push(v.x, v.y + 0.1, v.z); // +0.1 Visual Offset
                     let col = cAsphalt;
                     if (j === 0 || j === 5) { const seg = Math.floor(i / 5); col = (seg % 2 === 0) ? cKerbRed : cKerbWhite; }
                     else if (j === 1 || j === 4) { col = cLine; }
@@ -1271,33 +1246,21 @@
                     indices.push(nextBase + k, nextBase + k + 1, base + k + 1);
                 }
 
-                // Terrain Generation (Extruded Strips)
+                // Terrain Generation (SAFE ASYMMETRIC)
                 const tW_Out = 1500;
-                const tW_In = 20; // Drastically reduced to prevent center overlap (relies on ground plane)
-
-                // Points: Far Left (-tW_In), Near Left (-w-kw), Near Right (+w+kw), Far Right (+tW_Out)
-                // Assuming Side vector points Outwards (Right) on CCW track, Negative is Inwards
+                const tW_In = 20; // Safe inner width
                 const pl1 = p1.clone().add(side.clone().multiplyScalar(-tW_In));
                 const pl2 = p1.clone().add(side.clone().multiplyScalar(-w - kw));
                 const pr1 = p1.clone().add(side.clone().multiplyScalar(w + kw));
                 const pr2 = p1.clone().add(side.clone().multiplyScalar(tW_Out));
-
                 const ty = -0.01;
                 terrainVertices.push(pl1.x, pl1.y + ty, pl1.z);
                 terrainVertices.push(pl2.x, pl2.y + ty, pl2.z);
                 terrainVertices.push(pr1.x, pr1.y + ty, pr1.z);
                 terrainVertices.push(pr2.x, pr2.y + ty, pr2.z);
-
-                const tRow = 4;
-                const tb = i * tRow;
-                const tbn = ((i + 1) % len) * tRow;
-
-                // Strip 1: Left (0-1)
-                terrainIndices.push(tb+0, tbn+0, tb+1);
-                terrainIndices.push(tbn+0, tbn+1, tb+1);
-                // Strip 2: Right (2-3)
-                terrainIndices.push(tb+2, tbn+2, tb+3);
-                terrainIndices.push(tbn+2, tbn+3, tb+3);
+                const tRow = 4; const tb = i * tRow; const tbn = ((i + 1) % len) * tRow;
+                terrainIndices.push(tb+0, tbn+0, tb+1); terrainIndices.push(tbn+0, tbn+1, tb+1);
+                terrainIndices.push(tb+2, tbn+2, tb+3); terrainIndices.push(tbn+2, tbn+3, tb+3);
             }
 
             // Build Terrain Mesh
@@ -1315,6 +1278,14 @@
             scene.add(terrainMesh);
 
             scene.add(sandTrapsMesh);
+
+            // Build Terrain
+            const terrainGeo = new THREE.BufferGeometry();
+            terrainGeo.setAttribute('position', new THREE.Float32BufferAttribute(terrainVertices, 3));
+            terrainGeo.setIndex(terrainIndices); terrainGeo.computeVertexNormals();
+            const terrainMat = new THREE.MeshStandardMaterial({ color: grassColorHex, roughness: 1.0, side: THREE.DoubleSide });
+            const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat); terrainMesh.receiveShadow = true; scene.add(terrainMesh);
+
             trackGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
             trackGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
             trackGeo.setIndex(indices); trackGeo.computeVertexNormals();
@@ -1330,34 +1301,17 @@
             const trackMesh = new THREE.Mesh(trackGeo, trackMat); trackMesh.receiveShadow = true; scene.add(trackMesh);
 
             // PHYSICS: SOLID ROADBED (Boxes)
-            // Replaces Trimesh with thick boxes to prevent tunneling
             for(let i=0; i<len; i++) {
-                const p1 = trackPoints[i];
-                const p2 = trackPoints[(i+1)%len];
-
+                const p1 = trackPoints[i]; const p2 = trackPoints[(i+1)%len];
                 const dist = p1.distanceTo(p2);
                 const center = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-
-                // Box Dimensions
-                const bW = 1500; // Extended to match terrain
-                const bH = 20; // Thickness (Depth)
-                const bL = dist + 0.2; // Overlap
-
+                const bW = 1500; const bH = 20; const bL = dist + 0.2;
                 const boxShape = new CANNON.Box(new CANNON.Vec3(bW/2, bH/2, bL/2));
                 const boxBody = new CANNON.Body({ mass: 0, material: world.defaultMaterial });
                 boxBody.addShape(boxShape);
-
-                // Position: Surface at +0.05 relative to track curve
-                // Center Y = (SurfaceY) - (bH/2) = (center.y + 0.05) - 10
                 boxBody.position.set(center.x, center.y + 0.05 - (bH/2), center.z);
-
-                // Orientation (LookAt)
-                // We use a dummy object to get the quaternion easily
-                const dummy = new THREE.Object3D();
-                dummy.position.copy(p1);
-                dummy.lookAt(p2);
+                const dummy = new THREE.Object3D(); dummy.position.copy(p1); dummy.lookAt(p2);
                 boxBody.quaternion.set(dummy.quaternion.x, dummy.quaternion.y, dummy.quaternion.z, dummy.quaternion.w);
-
                 world.addBody(boxBody);
             }
 
@@ -1371,111 +1325,77 @@
         }
         
         function generatePitLane() {
-            // Find start and end indices around start line (0)
-            // trackRes is 800
-            const pitLen = 90; // INCREASED: Points duration (180 total)
-            const startIndex = cfg.trackRes - pitLen; // e.g. 710
-            const endIndex = pitLen; // e.g. 90
-            
-            const pitVertices = [];
-            const pitIndices = [];
+            const pitLen = 90; // Longer lane
+            const pitVertices = []; const pitIndices = [];
             const pitWidth = 10;
-            const maxOffset = (cfg.roadWidth / 2) + 8; // Lane offset from track center
+            const maxOffset = (cfg.roadWidth / 2) + 8;
             
-            // Generate points
-            // We loop from -90 to +90
             for(let i = -pitLen; i <= pitLen; i++) {
                 let idx = (cfg.trackRes + i) % cfg.trackRes;
                 let nextIdx = (cfg.trackRes + i + 1) % cfg.trackRes;
                 
-                const p1 = trackPoints[idx];
-                const p2 = trackPoints[nextIdx];
-                
-                // Calc tangent & side
+                const p1 = trackPoints[idx]; const p2 = trackPoints[nextIdx];
                 const tan = new THREE.Vector3().subVectors(p2, p1).normalize();
-                const side = new THREE.Vector3(tan.z, 0, -tan.x).normalize(); // Right side
+                const side = new THREE.Vector3(tan.z, 0, -tan.x).normalize();
                 
-                // Calculate Offset
-                // 3 phases: Entry (ramp out), Lane (constant), Exit (ramp in)
                 let currentOffset = 0;
-                const rampLen = 45; // INCREASED: Smoother ramp
+                const rampLen = 45;
                 
                 if (i < -pitLen + rampLen) {
-                    // Entry Ramp
                     const t = (i - (-pitLen)) / rampLen;
                     currentOffset = (cfg.roadWidth/2) + (t * (maxOffset - (cfg.roadWidth/2)));
                 } else if (i > pitLen - rampLen) {
-                    // Exit Ramp
                     const t = (pitLen - i) / rampLen;
                     currentOffset = (cfg.roadWidth/2) + (t * (maxOffset - (cfg.roadWidth/2)));
                 } else {
-                    // Full Lane
                     currentOffset = maxOffset;
                 }
                 
-                // Build Mesh Strip
                 const w = pitWidth / 2;
-                // Inner edge (closest to track)
                 const vIn = p1.clone().add(side.clone().multiplyScalar(currentOffset - w));
-                // Outer edge
                 const vOut = p1.clone().add(side.clone().multiplyScalar(currentOffset + w));
                 
-                // ELEVATION FIX: Use point Y
+                // Use Correct Y
                 pitVertices.push(vIn.x, vIn.y + 0.05, vIn.z);
                 pitVertices.push(vOut.x, vOut.y + 0.05, vOut.z);
                 
-                // Indices
                 if (i < pitLen) {
                     const base = (i + pitLen) * 2;
                     pitIndices.push(base, base+1, base+2);
                     pitIndices.push(base+1, base+3, base+2);
                 }
                 
-                // Setup Pit Box Trigger at i=0
                 if (i === 0) {
                     const boxCenter = p1.clone().add(side.clone().multiplyScalar(maxOffset));
-                    pitBoxPosition = { x: boxCenter.x, y: boxCenter.y, z: boxCenter.z, radius: 15 }; // INCREASED RADIUS
+                    pitBoxPosition = { x: boxCenter.x, y: boxCenter.y, z: boxCenter.z, radius: 15 };
                     
-                    // Visual Box
-                    const boxGeo = new THREE.PlaneGeometry(16, 12);
-                    boxGeo.rotateX(-Math.PI/2);
+                    const boxGeo = new THREE.PlaneGeometry(16, 12); boxGeo.rotateX(-Math.PI/2);
                     const boxMat = new THREE.MeshBasicMaterial({ color: 0x444444 });
                     const boxMesh = new THREE.Mesh(boxGeo, boxMat);
-                    boxMesh.position.copy(boxCenter);
-                    boxMesh.position.y += 0.051; // Relative to center Y
-                    // Align with track
-                    const angle = Math.atan2(tan.x, tan.z);
-                    boxMesh.rotation.y = angle;
+                    // Align Y
+                    boxMesh.position.copy(boxCenter); boxMesh.position.y += 0.051;
+                    const angle = Math.atan2(tan.x, tan.z); boxMesh.rotation.y = angle;
                     scene.add(boxMesh);
                     
-                    // Markings
-                    const markGeo = new THREE.PlaneGeometry(14, 8);
-                    markGeo.rotateX(-Math.PI/2);
+                    const markGeo = new THREE.PlaneGeometry(14, 8); markGeo.rotateX(-Math.PI/2);
                     const markMat = new THREE.MeshBasicMaterial({ color: 0xffff00, wireframe: true });
                     const markMesh = new THREE.Mesh(markGeo, markMat);
-                    markMesh.position.copy(boxCenter);
-                    markMesh.position.y += 0.052;
-                    markMesh.rotation.y = angle;
+                    markMesh.position.copy(boxCenter); markMesh.position.y += 0.052; markMesh.rotation.y = angle;
                     scene.add(markMesh);
                 }
             }
             
             const geo = new THREE.BufferGeometry();
             geo.setAttribute('position', new THREE.Float32BufferAttribute(pitVertices, 3));
-            geo.setIndex(pitIndices);
-            geo.computeVertexNormals();
+            geo.setIndex(pitIndices); geo.computeVertexNormals();
             const mat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9 });
-            const mesh = new THREE.Mesh(geo, mat);
-            scene.add(mesh);
+            const mesh = new THREE.Mesh(geo, mat); scene.add(mesh);
 
-            // PIT PHYSICS
-            // (Disabled: Covered by main roadbed boxes which are 600 units wide)
             /*
             if (pitVertices.length > 0) {
                 const pitShape = new CANNON.Trimesh(pitVertices, pitIndices);
                 const pitBody = new CANNON.Body({ mass: 0, material: world.defaultMaterial });
-                pitBody.addShape(pitShape);
-                world.addBody(pitBody);
+                pitBody.addShape(pitShape); world.addBody(pitBody);
             }
             */
         }
@@ -2106,87 +2026,55 @@
             if(!isRunning || isPaused) return;
             animId = requestAnimationFrame(animate);
             
-            // Allow physics loop in 'racing' AND 'finished' (for coasting)
             if(raceState === 'racing' || raceState === 'finished') {
                 world.step(1/60);
                 const speed = chassisBody.velocity.length(); const kph = speed * 3.6;
                 
                 let force = 0;
                 let brakeVal = 0;
-                let steering = 0; // Default steer for this frame
+                let steering = 0;
 
-                // PLAYER LOGIC: Racing vs Finished
                 if (raceState === 'finished') {
-                    // --- PLAYER AUTOPILOT (Coasting) ---
-                    // 1. Find Closest Point on Track
                     let minD = Infinity, cIdx = 0;
                     const p = chassisBody.position;
-                    // Sparse search for performance
                     for(let i=0; i<trackPoints.length; i+=5) {
                         const d = (p.x - trackPoints[i].x)**2 + (p.z - trackPoints[i].z)**2;
                         if(d < minD) { minD = d; cIdx = i; }
                     }
-                    
-                    // 2. Steer towards LookAhead
                     const lookAhead = 10;
                     const targetIdx = (cIdx + lookAhead) % trackPoints.length;
                     const target = new CANNON.Vec3(trackPoints[targetIdx].x, trackPoints[targetIdx].y, trackPoints[targetIdx].z);
                     const local = new CANNON.Vec3();
                     chassisBody.pointToLocalFrame(target, local);
                     const targetSteer = Math.atan2(local.x, local.z);
-                    
-                    // 3. Control Speed (Coast at ~100kph)
                     if(kph < 80) force = -3000;
                     else if(kph > 100) brakeVal = 50;
-                    
-                    // Apply Steering Smoothing
                     steering = currentSteer + (targetSteer - currentSteer) * 0.1;
-                    
-                    // Force reset timer to 0 so HUD doesn't show
                     resetTimer = 0; 
                 } else {
-                    // --- RACING INPUTS ---
-                    // REDUCED ENGINE FORCE
                     let enginePower = -8000;
                     if (cfg.carClass === 'mini') enginePower = -3500;
 
                     if(inputs.up) force = enginePower;
-                    if(inputs.brake) { 
-                        brakeVal = 150; 
-                        force = 0;
-                    }
+                    if(inputs.brake) { brakeVal = 150; force = 0; }
                     
                     let maxSteer = Math.max(0.2, 0.6 - (speed * 0.008)); 
-                    
-                    // WET STEERING
-                    if (cfg.weather === 'wet') maxSteer *= 0.8; // harder to turn sharp
+                    if (cfg.weather === 'wet') maxSteer *= 0.8;
 
-                    // NON-LINEAR STEERING
                     let inputVal = inputs.left ? 1 : (inputs.right ? -1 : 0);
-
                     if (inputVal !== 0) {
-                        // Ramp up steering over time when key held
-                        // Store a "steer time" or just use linear interpolation with a curve
-                        // Simpler approach: Exponential curve based on current steering
-
-                        // Move towards target
-                        const steerSpeed = 0.1; // Slow build up
+                        const steerSpeed = 0.1;
                         currentSteer += inputVal * steerSpeed;
                     } else {
-                        // Return to center fast
                         currentSteer *= 0.8;
                     }
 
-                    // Clamp
                     if(currentSteer > 1) currentSteer = 1;
                     if(currentSteer < -1) currentSteer = -1;
 
-                    // Apply Non-Linear Curve (x^2 or x^1.5)
-                    // This gives precision near center (0) and speed at edges (1)
                     const curve = Math.abs(currentSteer) ** 1.5;
                     steering = Math.sign(currentSteer) * curve * maxSteer;
                     
-                    // AUTO RESET LOGIC (Only in Racing mode)
                     if(kph < 10 && inputs.brake) {
                         resetTimer += 0.02; if(resetTimer > 1.5) resetCar();
                         document.getElementById('reset-bar').style.display = 'block';
@@ -2194,11 +2082,9 @@
                     } else { resetTimer = 0; document.getElementById('reset-bar').style.display = 'none'; }
                 }
 
-                // Use calculated steering (variable was repurposed in previous step, so we use 'steering' directly)
                 vehicle.setSteeringValue(steering, 0); vehicle.setSteeringValue(steering, 1);
                 
                 let onSurface = 'tarmac';
-                // Only check surface if racing for performance/logic, or keep checking for autopilot realism
                 inSand = false; const pos = chassisBody.position;
                 for(let trap of sandTraps) {
                     const distSq = (pos.x - trap.pos.x)**2 + (pos.z - trap.pos.z)**2;
@@ -2217,97 +2103,56 @@
                 if(onSurface === 'sand') { force *= 0.7; chassisBody.velocity.scale(0.98, chassisBody.velocity); spawnDust(pos, 0xd2b48c); } 
                 else if(onSurface === 'grass') { force *= 0.7; chassisBody.velocity.scale(0.98, chassisBody.velocity); if(speed > 5) spawnDust(pos, 0x2e8b57); }
                 
-                // TYRE DEGRADATION LOGIC
-                // Degrades based on Speed and Cornering force
-                // 0.0001 per tick per unit of speed + 0.0005 per tick per steering*speed unit
                 if (raceState === 'racing' && onSurface === 'tarmac' && speed > 10) {
                     const wearRate = (speed * 0.0001) + (Math.abs(currentSteer) * speed * 0.0005);
                     tyreLife -= wearRate;
                     if (tyreLife < 0) tyreLife = 0;
-                    
-                    // Update HUD
                     const tyreEl = document.getElementById('tyre-val');
                     tyreEl.innerText = Math.ceil(tyreLife) + "%";
-                    if (tyreLife > 70) tyreEl.style.color = "#2ecc71"; // Green
-                    else if (tyreLife > 40) tyreEl.style.color = "#f1c40f"; // Yellow
-                    else tyreEl.style.color = "#e74c3c"; // Red
+                    if (tyreLife > 70) tyreEl.style.color = "#2ecc71";
+                    else if (tyreLife > 40) tyreEl.style.color = "#f1c40f";
+                    else tyreEl.style.color = "#e74c3c";
                 }
                 
-                // Update Friction based on Tyre Wear
-                // 100% life = 100% grip. 0% life = 50% grip.
                 const baseGrip = cfg.weather === 'wet' ? 2.2 : 5.0;
                 const wearFactor = 0.5 + (0.5 * (tyreLife / 100));
                 const currentGrip = baseGrip * wearFactor;
-                
                 vehicle.wheelInfos.forEach(w => w.frictionSlip = currentGrip);
 
-                // --- PIT STOP LOGIC ---
-                // Check if inside pit box area
                 if (pitBoxPosition && raceState === 'racing') {
                     const dx = pos.x - pitBoxPosition.x;
                     const dz = pos.z - pitBoxPosition.z;
                     const distSq = dx*dx + dz*dz;
                     const msgEl = document.getElementById('pit-msg');
-                    
-                    // Increased trigger area
                     if (distSq < 225) { 
                         if (kph > 10) {
-                            msgEl.style.display = 'block';
-                            msgEl.innerText = "PIT ENTRY: TOO FAST!";
-                            msgEl.style.borderColor = '#e74c3c';
+                            msgEl.style.display = 'block'; msgEl.innerText = "PIT ENTRY: TOO FAST!"; msgEl.style.borderColor = '#e74c3c';
                             isPitting = false; pitTimer = 0;
                         } else if (kph > 1) {
-                            msgEl.style.display = 'block';
-                            msgEl.innerText = "STOP CAR";
-                            msgEl.style.borderColor = '#f1c40f';
+                            msgEl.style.display = 'block'; msgEl.innerText = "STOP CAR"; msgEl.style.borderColor = '#f1c40f';
                             isPitting = false; pitTimer = 0;
                         } else {
-                            // Stopped in box
-                            if (!isPitting) {
-                                isPitting = true;
-                                pitTimer = 0;
-                            }
-                            pitTimer += 1/60; // assume 60fps delta
-                            
-                            msgEl.style.display = 'block';
-                            msgEl.style.borderColor = '#3498db';
-                            
+                            if (!isPitting) { isPitting = true; pitTimer = 0; }
+                            pitTimer += 1/60;
+                            msgEl.style.display = 'block'; msgEl.style.borderColor = '#3498db';
                             if (pitTimer < 3.0) {
-                                const pct = Math.floor((pitTimer/3.0)*100);
-                                msgEl.innerText = `CHANGING TYRES... ${pct}%`;
+                                const pct = Math.floor((pitTimer/3.0)*100); msgEl.innerText = `CHANGING TYRES... ${pct}%`;
                             } else {
-                                tyreLife = 100;
-                                msgEl.innerText = "GO! GO! GO!";
-                                msgEl.style.borderColor = '#2ecc71';
+                                tyreLife = 100; msgEl.innerText = "GO! GO! GO!"; msgEl.style.borderColor = '#2ecc71';
                             }
                         }
                     } else {
-                        // Left box area
-                        if (isPitting && pitTimer > 3.0) {
-                            // Successfully pitted
-                            msgEl.style.display = 'none';
-                        } else {
-                            // Left without finishing or wasn't pitting
-                            msgEl.style.display = 'none';
-                        }
-                        isPitting = false;
-                        pitTimer = 0;
+                        msgEl.style.display = 'none'; isPitting = false; pitTimer = 0;
                     }
                 }
 
                 vehicle.applyEngineForce(force, 2); vehicle.applyEngineForce(force, 3);
-                
-                // Apply Brakes
                 vehicle.setBrake(brakeVal, 0); vehicle.setBrake(brakeVal, 1); vehicle.setBrake(brakeVal, 2); vehicle.setBrake(brakeVal, 3);
                 
                 if((inputs.brake && speed > 5) || Math.abs(currentSteer) > 0.4 && speed > 15) { spawnDust(visualWheels[2].position, 0xaaaaaa); spawnDust(visualWheels[3].position, 0xaaaaaa); }
                 
-                // Player Spray
                 if (cfg.weather === 'wet' && onSurface === 'tarmac' && speed > 20) {
-                    if (Math.random() > 0.5) {
-                        spawnDust(visualWheels[2].position, 0xffffff);
-                        spawnDust(visualWheels[3].position, 0xffffff);
-                    }
+                    if (Math.random() > 0.5) { spawnDust(visualWheels[2].position, 0xffffff); spawnDust(visualWheels[3].position, 0xffffff); }
                 }
 
                 let downforce = speed * speed * 3.0; if(downforce > 20000) downforce = 20000;
@@ -2317,24 +2162,20 @@
                 document.getElementById('speed-val').innerText = Math.round(kph);
                 updateAudio(speed);
                 
-                // GEAR DISPLAY
                 let gear = 1;
                 if (cfg.carClass === 'mini') {
                     gear = Math.min(4, Math.max(1, Math.ceil(kph / 35)));
                 } else {
                     gear = Math.min(8, Math.max(1, Math.ceil(kph / 45)));
                 }
-
                 let gearText = gear; 
                 if(raceState === 'countdown') gearText = 'N';
-                
                 document.getElementById('gear-val').innerText = gearText;
                 document.getElementById('time-val').innerText = formatTime(Date.now() - startTime);
                 document.getElementById('total-time-val').innerText = formatTime(Date.now() - raceStartTime);
                 updateLogic(); updateSkidmarks(); updateParticles(); updateMinimap();
             }
             
-            // Visual Update
             if(chassisBody.userData.mesh) { chassisBody.userData.mesh.position.copy(chassisBody.position); chassisBody.userData.mesh.quaternion.copy(chassisBody.quaternion); }
             for(let i=0; i<vehicle.wheelInfos.length; i++) {
                 vehicle.updateWheelTransform(i); const t = vehicle.wheelInfos[i].worldTransform;
@@ -2345,16 +2186,13 @@
                 const offset = ZOOM_LEVELS[zoomLevel];
                 const targetPos = new THREE.Vector3(carPos.x + offset.dist, carPos.y + offset.y, carPos.z + offset.dist);
 
-                // DYNAMIC CAMERA SHAKE
+                // DYNAMIC CAMERA
                 if (raceState === 'racing') {
                     const speed = chassisBody.velocity.length();
                     const kph = speed * 3.6;
-
-                    // Shake on grass/sand or high speed
                     let shakeAmt = 0;
                     if (inSand) shakeAmt = 0.5;
                     else if (kph > 250) shakeAmt = (kph - 250) * 0.005;
-
                     if (shakeAmt > 0) {
                         targetPos.x += (Math.random() - 0.5) * shakeAmt;
                         targetPos.y += (Math.random() - 0.5) * shakeAmt;
@@ -2364,21 +2202,14 @@
 
                 camera.position.lerp(targetPos, 0.1); 
                 camera.lookAt(new THREE.Vector3(carPos.x, carPos.y, carPos.z));
-                
-                // DYNAMIC ROLL (Tilt based on steering)
-                // We use the steering value calculated in physics loop
-                // Since this runs after physics step, 'currentSteer' might be available or we can access vehicle
-                // We will use the rotation of the car + slight roll
-
-                const roll = vehicle.wheelInfos[0].steering * -0.05; // Tilt into turn (Subtle)
+                const roll = vehicle.wheelInfos[0].steering * -0.05;
                 camera.rotation.z = roll;
 
-                // Update Rain Position relative to Camera to simulate infinite rain
                 if (rainSystem) {
                     rainSystem.position.set(carPos.x, carPos.y, carPos.z);
                     const positions = rainSystem.geometry.attributes.position.array;
                     for (let i = 1; i < positions.length; i += 3) {
-                        positions[i] -= 2; // fall speed
+                        positions[i] -= 2;
                         if (positions[i] < -100) positions[i] = 100;
                     }
                     rainSystem.geometry.attributes.position.needsUpdate = true;
