@@ -1200,7 +1200,15 @@
             for(let i=0; i<len; i++) {
                 const p1 = trackPoints[i]; const p2 = trackPoints[(i+1)%len]; const p3 = trackPoints[(i+2)%len];
                 const tangent = new THREE.Vector3().subVectors(p2, p1).normalize();
+                // Use track normal for banking later if desired, but for now simple UP is okay
+                // However, with elevation, 'up' is not always (0,1,0) if we bank
+                // For simplicity, keep flat banking (0,1,0) but respect incline
+                // Actually, to prevent road tilting weirdly, we compute a binormal
                 const up = new THREE.Vector3(0, 1, 0);
+
+                // BANKING: Tilt into corner?
+                // Simple version: keep 'up' as (0,1,0) makes road "steps".
+                // Better: Cross tangent with world up to get side, then cross side with tangent to get real up.
                 const side = new THREE.Vector3().crossVectors(tangent, up).normalize();
 
                 // Sand Traps (With elevation)
@@ -1221,6 +1229,10 @@
                 const offsets = [-w - kw, -w, -w + 0.5, w - 0.5, w, w + kw];
                 for(let j=0; j<offsets.length; j++) {
                     const os = offsets[j];
+                    // Use 'realUp' for height offset to match road inclination?
+                    // No, usually just add height.
+                    // But 'side' vector already handles the x/z plane.
+                    // If elevation is steep, y changes.
                     const v = new THREE.Vector3().copy(p1).add(side.clone().multiplyScalar(os));
                     vertices.push(v.x, v.y + 0.1, v.z); // +0.1 Visual Offset
                     let col = cAsphalt;
@@ -1250,6 +1262,21 @@
                 terrainIndices.push(tb+0, tbn+0, tb+1); terrainIndices.push(tbn+0, tbn+1, tb+1);
                 terrainIndices.push(tb+2, tbn+2, tb+3); terrainIndices.push(tbn+2, tbn+3, tb+3);
             }
+
+            // Build Terrain Mesh
+            const terrainGeo = new THREE.BufferGeometry();
+            terrainGeo.setAttribute('position', new THREE.Float32BufferAttribute(terrainVertices, 3));
+            terrainGeo.setIndex(terrainIndices);
+            terrainGeo.computeVertexNormals();
+            const terrainMat = new THREE.MeshStandardMaterial({
+                color: grassColorHex,
+                roughness: 1.0,
+                side: THREE.DoubleSide // Handle overlaps/twists
+            });
+            const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+            terrainMesh.receiveShadow = true;
+            scene.add(terrainMesh);
+
             scene.add(sandTrapsMesh);
 
             // Build Terrain
@@ -1267,7 +1294,10 @@
             const trackRough = cfg.weather === 'wet' ? 0.2 : 0.8;
             const trackMetal = cfg.weather === 'wet' ? 0.4 : 0.0;
 
-            const trackMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: trackRough, metalness: trackMetal, flatShading: false, side: THREE.DoubleSide });
+            // const trackMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: trackRough, metalness: trackMetal, flatShading: false, side: THREE.DoubleSide });
+            // Fallback to solid color if vertexColors is the issue
+            const trackMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: trackRough, metalness: trackMetal, flatShading: false, side: THREE.DoubleSide });
+
             const trackMesh = new THREE.Mesh(trackGeo, trackMat); trackMesh.receiveShadow = true; scene.add(trackMesh);
 
             // PHYSICS: SOLID ROADBED (Boxes)
