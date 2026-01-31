@@ -1269,8 +1269,24 @@
 
             const trackMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: trackRough, metalness: trackMetal, flatShading: false, side: THREE.DoubleSide });
             const trackMesh = new THREE.Mesh(trackGeo, trackMat); trackMesh.receiveShadow = true; scene.add(trackMesh);
+
+            // PHYSICS MESH FOR TRACK
+            // Convert BufferGeometry to Trimesh
+            const trimeshVerts = vertices;
+            const trimeshIndices = indices;
+            const trackShape = new CANNON.Trimesh(trimeshVerts, trimeshIndices);
+            const trackBody = new CANNON.Body({ mass: 0, material: world.defaultMaterial });
+            trackBody.addShape(trackShape);
+            world.addBody(trackBody);
+
+            // GRASS PLANE (Lowered slightly so we fall to it)
+            // Original code had Plane at 0. Track is now +30.
+            // We keep the plane at 0 or -0.1 as a "Safety Net" / "Grass"
             const groundBody = new CANNON.Body({ mass: 0, material: world.defaultMaterial });
-            const groundShape = new CANNON.Plane(); groundBody.addShape(groundShape); groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); world.addBody(groundBody);
+            const groundShape = new CANNON.Plane(); groundBody.addShape(groundShape); groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+            groundBody.position.y = -0.1;
+            world.addBody(groundBody);
+
             const startPos = trackCurve.getPoint(0); const nextPos = trackCurve.getPoint(0.01);
             const lineGeo = new THREE.BoxGeometry(cfg.roadWidth, 0.02, 1.5);
             const lineMesh = new THREE.Mesh(lineGeo, new THREE.MeshBasicMaterial({color:0xffffff}));
@@ -1377,6 +1393,14 @@
             const mat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9 });
             const mesh = new THREE.Mesh(geo, mat);
             scene.add(mesh);
+
+            // PIT PHYSICS
+            if (pitVertices.length > 0) {
+                const pitShape = new CANNON.Trimesh(pitVertices, pitIndices);
+                const pitBody = new CANNON.Body({ mass: 0, material: world.defaultMaterial });
+                pitBody.addShape(pitShape);
+                world.addBody(pitBody);
+            }
         }
 
         const bodyGeo = new THREE.BoxGeometry(1.2, 0.5, 3.5);
@@ -1447,7 +1471,7 @@
             const shape = new CANNON.Box(colSize);
             body.addShape(shape, new CANNON.Vec3(0, 0.4, 0));
 
-            body.position.copy(startPos); body.position.y = 2;
+            body.position.copy(startPos); body.position.y += 2; // Relative to track height
             const angle = Math.atan2(p2.x - p1.x, p2.z - p1.z);
             body.quaternion.setFromEuler(0, angle, 0);
 
@@ -1526,7 +1550,7 @@
             const chassisShape = new CANNON.Box(colSize);
             chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0.4, 0)); 
 
-            chassisBody.position.copy(p1); chassisBody.position.y = 2;
+            chassisBody.position.copy(p1); chassisBody.position.y += 2; // Relative to track height
             
             const angle = Math.atan2(p2.x - p1.x, p2.z - p1.z);
             chassisBody.quaternion.setFromEuler(0, angle, 0);
