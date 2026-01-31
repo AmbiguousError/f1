@@ -1196,6 +1196,16 @@
             ];
 
             const grassColorHex = cfg.time === 'sunset' ? 0x2e3b28 : 0x2e8b57;
+
+            // Safe Ground Plane (Fills the center void)
+            const groundGeo = new THREE.PlaneGeometry(2000, 2000);
+            groundGeo.rotateX(-Math.PI/2);
+            const groundMat = new THREE.MeshStandardMaterial({ color: grassColorHex, roughness: 1.0 });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.position.y = 0; // Below lowest track point (~5)
+            ground.receiveShadow = true;
+            scene.add(ground);
+
             const roadWidth = cfg.roadWidth;
             const trackGeo = new THREE.BufferGeometry();
             const vertices = []; const colors = []; const indices = [];
@@ -1249,7 +1259,7 @@
                     // But 'side' vector already handles the x/z plane.
                     // If elevation is steep, y changes.
                     const v = new THREE.Vector3().copy(p1).add(side.clone().multiplyScalar(os));
-                    vertices.push(v.x, v.y + 0.05, v.z);
+                    vertices.push(v.x, v.y + 0.1, v.z); // Lifted to 0.1 to avoid z-fighting
                     let col = cAsphalt;
                     if (j === 0 || j === 5) { const seg = Math.floor(i / 5); col = (seg % 2 === 0) ? cKerbRed : cKerbWhite; }
                     else if (j === 1 || j === 4) { col = cLine; }
@@ -1262,12 +1272,15 @@
                 }
 
                 // Terrain Generation (Extruded Strips)
-                const tW = 1500;
-                // Points: Far Left (-tW), Near Left (-w-kw), Near Right (+w+kw), Far Right (+tW)
-                const pl1 = p1.clone().add(side.clone().multiplyScalar(-tW));
+                const tW_Out = 1500;
+                const tW_In = 20; // Drastically reduced to prevent center overlap (relies on ground plane)
+
+                // Points: Far Left (-tW_In), Near Left (-w-kw), Near Right (+w+kw), Far Right (+tW_Out)
+                // Assuming Side vector points Outwards (Right) on CCW track, Negative is Inwards
+                const pl1 = p1.clone().add(side.clone().multiplyScalar(-tW_In));
                 const pl2 = p1.clone().add(side.clone().multiplyScalar(-w - kw));
                 const pr1 = p1.clone().add(side.clone().multiplyScalar(w + kw));
-                const pr2 = p1.clone().add(side.clone().multiplyScalar(tW));
+                const pr2 = p1.clone().add(side.clone().multiplyScalar(tW_Out));
 
                 const ty = -0.01;
                 terrainVertices.push(pl1.x, pl1.y + ty, pl1.z);
@@ -1310,7 +1323,10 @@
             const trackRough = cfg.weather === 'wet' ? 0.2 : 0.8;
             const trackMetal = cfg.weather === 'wet' ? 0.4 : 0.0;
 
-            const trackMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: trackRough, metalness: trackMetal, flatShading: false, side: THREE.DoubleSide });
+            // const trackMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: trackRough, metalness: trackMetal, flatShading: false, side: THREE.DoubleSide });
+            // Fallback to solid color if vertexColors is the issue
+            const trackMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: trackRough, metalness: trackMetal, flatShading: false, side: THREE.DoubleSide });
+
             const trackMesh = new THREE.Mesh(trackGeo, trackMat); trackMesh.receiveShadow = true; scene.add(trackMesh);
 
             // PHYSICS: SOLID ROADBED (Boxes)
