@@ -535,8 +535,10 @@
     </script>
 
     <script type="module">
+        console.log("Module script started");
         import * as THREE from 'three';
         import * as CANNON from 'cannon-es';
+        console.log("Imports loaded");
 
         // --- GLOBAL VARIABLES ---
         let scene, camera, renderer, world;
@@ -609,6 +611,7 @@
 
         // --- EVENT LISTENERS ---
         window.addEventListener('init-game', (e) => {
+            console.log("init-game event received", e.detail);
             const d = e.detail;
             cfg.time = d.time;
             cfg.laps = d.laps;
@@ -2046,6 +2049,9 @@
                     // NON-LINEAR STEERING
                     let inputVal = inputs.left ? 1 : (inputs.right ? -1 : 0);
 
+                    // NON-LINEAR STEERING
+                    let inputVal = inputs.left ? 1 : (inputs.right ? -1 : 0);
+
                     if (inputVal !== 0) {
                         // Ramp up steering over time when key held
                         // Store a "steer time" or just use linear interpolation with a curve
@@ -2223,3 +2229,7 @@
             }
             renderer.render(scene, camera);
         }
+
+    </script>
+</body>
+</html>
