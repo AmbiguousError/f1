@@ -587,7 +587,7 @@
         let inSand = false;
         
         // Audio
-        let audioCtx, engineOsc, turboOsc, engineGain, turboGain;
+        let audioCtx, engineOsc, turboOsc, skidOsc, engineGain, turboGain, skidGain;
         let audioMuted = false;
 
         // Visuals
@@ -1037,19 +1037,54 @@
                 engineGain = audioCtx.createGain(); engineGain.gain.value = 0.1;
                 turboOsc = audioCtx.createOscillator(); turboOsc.type = 'square'; turboOsc.frequency.value = 80;
                 turboGain = audioCtx.createGain(); turboGain.gain.value = 0.05;
+
+                // Skid Sound (White Noise roughly simulated or High Pitch Saw)
+                skidOsc = audioCtx.createOscillator(); skidOsc.type = 'sawtooth'; skidOsc.frequency.value = 800;
+                skidGain = audioCtx.createGain(); skidGain.gain.value = 0;
+
                 const filter = audioCtx.createBiquadFilter(); filter.type = "lowpass"; filter.frequency.value = 4000;
                 engineOsc.connect(engineGain); turboOsc.connect(turboGain);
                 engineGain.connect(filter); turboGain.connect(filter);
+
+                // Skid separate path or same filter? Same is fine but maybe less filtered
+                const skidFilter = audioCtx.createBiquadFilter(); skidFilter.type = "bandpass"; skidFilter.frequency.value = 1000;
+                skidOsc.connect(skidGain); skidGain.connect(skidFilter); skidFilter.connect(audioCtx.destination);
+
                 filter.connect(audioCtx.destination);
-                engineOsc.start(); turboOsc.start();
+                engineOsc.start(); turboOsc.start(); skidOsc.start();
             } catch(e) { console.warn("Audio fail"); }
         }
 
         function updateAudio(speed) {
             if(!audioCtx) return;
             const kph = speed * 3.6;
-            const isMini = cfg.carClass === 'mini';
             
+            // SKID AUDIO LOGIC
+            // Trigger on hard cornering or braking
+            let skidVol = 0;
+            // Get side slip or just use steering magnitude at speed
+            // Real slip is better but steering*speed is a good approximation
+            if (kph > 30) {
+                // Check grip
+                // If turning hard
+                if (Math.abs(currentSteer) > 0.3 && kph > 80) {
+                    skidVol = (Math.abs(currentSteer) - 0.3) * 0.5;
+                }
+                // If braking hard
+                if (inputs.brake && kph > 100) {
+                    skidVol = Math.max(skidVol, 0.3);
+                }
+                // If on grass/sand
+                if (inSand) skidVol = 0.6;
+            }
+            if (skidVol > 0.5) skidVol = 0.5;
+
+            // Modulate pitch slightly
+            const skidPitch = 800 + (Math.random() * 200);
+            skidOsc.frequency.setTargetAtTime(skidPitch, audioCtx.currentTime, 0.1);
+            skidGain.gain.setTargetAtTime(skidVol, audioCtx.currentTime, 0.1);
+            const isMini = cfg.carClass === 'mini';
+
             let gear, rpm, frequency;
 
             if (isMini) {
@@ -1104,11 +1139,27 @@
 
         function generateCircuit() {
             const points = []; const segments = 30; const noiseZ = rng() * 100;
+
+            // ELEVATION NOISE
+            // Create a simple height map array
+            const heightMap = [];
+            for(let i=0; i<segments; i++) {
+                // Use sine waves for rolling hills
+                const h = Math.sin(i * 0.5) * 10 + Math.cos(i * 1.2) * 15;
+                heightMap.push(h);
+            }
+
+            // Flatten Start/Finish area (Indices 0, 1, 2... and ...28, 29)
+            // Flatten area around start to avoid physics start glitches
+            // Start is at index 0. Let's flatten indices -3 to +3
+            for(let i=0; i<4; i++) heightMap[i] = 0;
+            for(let i=1; i<4; i++) heightMap[segments-i] = 0;
+
             for (let i = 0; i < segments; i++) {
                 const t = (i / segments) * Math.PI * 2;
                 const r = 220 + Math.sin(t * 3) * 50 + Math.cos(t * 2 + noiseZ) * 50 + (rng() * 30);
                 const x = Math.cos(t) * r; const z = Math.sin(t) * r;
-                points.push(new THREE.Vector3(x, 0, z));
+                points.push(new THREE.Vector3(x, heightMap[i], z));
             }
             
             // --- FIX FOR PIT LANE GLITCH ---
@@ -1159,8 +1210,19 @@
             for(let i=0; i<len; i++) {
                 const p1 = trackPoints[i]; const p2 = trackPoints[(i+1)%len]; const p3 = trackPoints[(i+2)%len];
                 const tangent = new THREE.Vector3().subVectors(p2, p1).normalize();
+                // Use track normal for banking later if desired, but for now simple UP is okay
+                // However, with elevation, 'up' is not always (0,1,0) if we bank
+                // For simplicity, keep flat banking (0,1,0) but respect incline
+                // Actually, to prevent road tilting weirdly, we compute a binormal
                 const up = new THREE.Vector3(0, 1, 0);
+
+                // BANKING: Tilt into corner?
+                // Simple version: keep 'up' as (0,1,0) makes road "steps".
+                // Better: Cross tangent with world up to get side, then cross side with tangent to get real up.
                 const side = new THREE.Vector3().crossVectors(tangent, up).normalize();
+                const realUp = new THREE.Vector3().crossVectors(side, tangent).normalize();
+
+                // const side = new THREE.Vector3().crossVectors(tangent, up).normalize();
                 const v1 = new THREE.Vector3().subVectors(p2, p1).normalize();
                 const v2 = new THREE.Vector3().subVectors(p3, p2).normalize();
                 const crossY = v1.x * v2.z - v1.z * v2.x;
@@ -1177,6 +1239,10 @@
                 const offsets = [-w - kw, -w, -w + 0.5, w - 0.5, w, w + kw];
                 for(let j=0; j<offsets.length; j++) {
                     const os = offsets[j];
+                    // Use 'realUp' for height offset to match road inclination?
+                    // No, usually just add height.
+                    // But 'side' vector already handles the x/z plane.
+                    // If elevation is steep, y changes.
                     const v = new THREE.Vector3().copy(p1).add(side.clone().multiplyScalar(os));
                     vertices.push(v.x, v.y + 0.05, v.z);
                     let col = cAsphalt;
@@ -1262,8 +1328,9 @@
                 // Outer edge
                 const vOut = p1.clone().add(side.clone().multiplyScalar(currentOffset + w));
                 
-                pitVertices.push(vIn.x, 0.05, vIn.z);
-                pitVertices.push(vOut.x, 0.05, vOut.z);
+                // ELEVATION FIX: Use point Y
+                pitVertices.push(vIn.x, vIn.y + 0.05, vIn.z);
+                pitVertices.push(vOut.x, vOut.y + 0.05, vOut.z);
                 
                 // Indices
                 if (i < pitLen) {
@@ -1283,7 +1350,7 @@
                     const boxMat = new THREE.MeshBasicMaterial({ color: 0x444444 });
                     const boxMesh = new THREE.Mesh(boxGeo, boxMat);
                     boxMesh.position.copy(boxCenter);
-                    boxMesh.position.y = 0.051;
+                    boxMesh.position.y += 0.051; // Relative to center Y
                     // Align with track
                     const angle = Math.atan2(tan.x, tan.z);
                     boxMesh.rotation.y = angle;
@@ -1295,7 +1362,7 @@
                     const markMat = new THREE.MeshBasicMaterial({ color: 0xffff00, wireframe: true });
                     const markMesh = new THREE.Mesh(markGeo, markMat);
                     markMesh.position.copy(boxCenter);
-                    markMesh.position.y = 0.052;
+                    markMesh.position.y += 0.052;
                     markMesh.rotation.y = angle;
                     scene.add(markMesh);
                 }
@@ -1991,8 +2058,30 @@
                     // WET STEERING
                     if (cfg.weather === 'wet') maxSteer *= 0.8; // harder to turn sharp
 
-                    const targetSteer = inputs.left ? maxSteer : (inputs.right ? -maxSteer : 0);
-                    steering = currentSteer + (targetSteer - currentSteer) * 0.2;
+                    // NON-LINEAR STEERING
+                    let inputVal = inputs.left ? 1 : (inputs.right ? -1 : 0);
+
+                    if (inputVal !== 0) {
+                        // Ramp up steering over time when key held
+                        // Store a "steer time" or just use linear interpolation with a curve
+                        // Simpler approach: Exponential curve based on current steering
+
+                        // Move towards target
+                        const steerSpeed = 0.1; // Slow build up
+                        currentSteer += inputVal * steerSpeed;
+                    } else {
+                        // Return to center fast
+                        currentSteer *= 0.8;
+                    }
+
+                    // Clamp
+                    if(currentSteer > 1) currentSteer = 1;
+                    if(currentSteer < -1) currentSteer = -1;
+
+                    // Apply Non-Linear Curve (x^2 or x^1.5)
+                    // This gives precision near center (0) and speed at edges (1)
+                    const curve = Math.abs(currentSteer) ** 1.5;
+                    steering = Math.sign(currentSteer) * curve * maxSteer;
                     
                     // AUTO RESET LOGIC (Only in Racing mode)
                     if(kph < 10 && inputs.brake) {
@@ -2002,8 +2091,8 @@
                     } else { resetTimer = 0; document.getElementById('reset-bar').style.display = 'none'; }
                 }
 
-                currentSteer = steering; // Save for smoothing
-                vehicle.setSteeringValue(currentSteer, 0); vehicle.setSteeringValue(currentSteer, 1);
+                // Use calculated steering (variable was repurposed in previous step, so we use 'steering' directly)
+                vehicle.setSteeringValue(steering, 0); vehicle.setSteeringValue(steering, 1);
                 
                 let onSurface = 'tarmac';
                 // Only check surface if racing for performance/logic, or keep checking for autopilot realism
@@ -2152,9 +2241,35 @@
                 const carPos = chassisBody.position;
                 const offset = ZOOM_LEVELS[zoomLevel];
                 const targetPos = new THREE.Vector3(carPos.x + offset.dist, carPos.y + offset.y, carPos.z + offset.dist);
+
+                // DYNAMIC CAMERA SHAKE
+                if (raceState === 'racing') {
+                    const speed = chassisBody.velocity.length();
+                    const kph = speed * 3.6;
+
+                    // Shake on grass/sand or high speed
+                    let shakeAmt = 0;
+                    if (inSand) shakeAmt = 0.5;
+                    else if (kph > 250) shakeAmt = (kph - 250) * 0.005;
+
+                    if (shakeAmt > 0) {
+                        targetPos.x += (Math.random() - 0.5) * shakeAmt;
+                        targetPos.y += (Math.random() - 0.5) * shakeAmt;
+                        targetPos.z += (Math.random() - 0.5) * shakeAmt;
+                    }
+                }
+
                 camera.position.lerp(targetPos, 0.1); 
                 camera.lookAt(new THREE.Vector3(carPos.x, carPos.y, carPos.z));
                 
+                // DYNAMIC ROLL (Tilt based on steering)
+                // We use the steering value calculated in physics loop
+                // Since this runs after physics step, 'currentSteer' might be available or we can access vehicle
+                // We will use the rotation of the car + slight roll
+
+                const roll = vehicle.wheelInfos[0].steering * -0.2; // Tilt into turn
+                camera.rotation.z = roll;
+
                 // Update Rain Position relative to Camera to simulate infinite rain
                 if (rainSystem) {
                     rainSystem.position.set(carPos.x, carPos.y, carPos.z);
