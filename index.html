@@ -1145,15 +1145,17 @@
             const heightMap = [];
             for(let i=0; i<segments; i++) {
                 // Use sine waves for rolling hills
-                const h = Math.sin(i * 0.5) * 10 + Math.cos(i * 1.2) * 15;
+                // Offset by +30 to ensure track stays above the grass plane (y=-0.1)
+                const h = 30 + Math.sin(i * 0.5) * 10 + Math.cos(i * 1.2) * 15;
                 heightMap.push(h);
             }
 
             // Flatten Start/Finish area (Indices 0, 1, 2... and ...28, 29)
             // Flatten area around start to avoid physics start glitches
             // Start is at index 0. Let's flatten indices -3 to +3
-            for(let i=0; i<4; i++) heightMap[i] = 0;
-            for(let i=1; i<4; i++) heightMap[segments-i] = 0;
+            const startHeight = 30; // Base height
+            for(let i=0; i<4; i++) heightMap[i] = startHeight;
+            for(let i=1; i<4; i++) heightMap[segments-i] = startHeight;
 
             for (let i = 0; i < segments; i++) {
                 const t = (i / segments) * Math.PI * 2;
@@ -2267,7 +2269,7 @@
                 // Since this runs after physics step, 'currentSteer' might be available or we can access vehicle
                 // We will use the rotation of the car + slight roll
 
-                const roll = vehicle.wheelInfos[0].steering * -0.2; // Tilt into turn
+                const roll = vehicle.wheelInfos[0].steering * -0.05; // Tilt into turn (Subtle)
                 camera.rotation.z = roll;
 
                 // Update Rain Position relative to Camera to simulate infinite rain
