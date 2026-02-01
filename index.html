@@ -1365,6 +1365,11 @@
             world = new CANNON.World();
             world.gravity.set(0, -9.82, 0);
             world.broadphase = new CANNON.SAPBroadphase(world);
+
+            // Performance Tweak
+            world.solver.iterations = 7;
+            world.solver.tolerance = 0.01;
+
             const defMat = new CANNON.Material('default');
             const wheelMat = new CANNON.Material('wheel');
             
@@ -1481,7 +1486,7 @@
             const pitLen = 80; // Extended length
             const pitVertices = []; const pitIndices = [];
             const pitWidth = 10;
-            const maxOffset = (cfg.roadWidth / 2) + 20; // Increased offset to move away from track
+            const maxOffset = (cfg.roadWidth / 2) + 10; // Moved back closer
             
             for(let i = -pitLen; i <= pitLen; i++) {
                 let idx = (cfg.trackRes + i) % cfg.trackRes;
@@ -2396,7 +2401,7 @@
                     // Clamp
                     if(currentSteer > 1) currentSteer = 1;
                     if(currentSteer < -1) currentSteer = -1;
-                    
+
                     // Apply Non-Linear Curve (x^2 or x^1.5)
                     // This gives precision near center (0) and speed at edges (1)
                     const curve = Math.abs(currentSteer) ** 1.5;
@@ -2480,12 +2485,8 @@
                     const distSq = dx*dx + dz*dz;
                     const msgEl = document.getElementById('pit-msg');
                     
-                    // Assist Braking on Pit Entry (within 400 sq dist ~ 20m)
-                    // Reduced radius to avoid overlapping main track
-                    if (distSq < 400 && kph > 60) {
-                        brakeVal = Math.max(brakeVal, 100);
-                        force = 0;
-                    }
+                    // Assist Braking Removed to prevent track slowdown
+                    // Only trigger logic inside box area
 
                     // Trigger Area
                     if (distSq < 225) { 
