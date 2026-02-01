@@ -304,7 +304,7 @@
             <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">GRID</span>
             <button class="opt-btn" onclick="setCars(6, this)">6</button>
             <button class="opt-btn" onclick="setCars(10, this)">10</button>
-            <button class="opt-btn selected" onclick="setCars(20, this)">20</button>
+            <button class="opt-btn selected" onclick="setCars(12, this)">12</button>
         </div>
 
         <div class="menu-row">
@@ -317,8 +317,8 @@
         <div class="menu-row">
             <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">ZOOM</span>
             <button class="opt-btn" onclick="setZoom(0, this)">CLOSE</button>
-            <button class="opt-btn" onclick="setZoom(1, this)">MID</button>
-            <button class="opt-btn selected" onclick="setZoom(2, this)">FAR</button>
+            <button class="opt-btn selected" onclick="setZoom(1, this)">MID</button>
+            <button class="opt-btn" onclick="setZoom(2, this)">FAR</button>
         </div>
 
         <div class="menu-row">
@@ -471,8 +471,8 @@
         let gameMode = 'single';
         let seasonRaces = 3;
         let selectedDifficulty = 'medium';
-        let selectedZoom = 2; 
-        let selectedCars = 20;
+        let selectedZoom = 1;
+        let selectedCars = 12;
         let selectedWeather = 'dry';
         let useQualifying = false;
         let isMuted = false;
@@ -747,7 +747,7 @@
         ];
 
         // Configuration
-        let cfg = { seed: "MONZA", laps: 5, time: "day", roadWidth: 18, trackRes: 800, difficulty: 'medium', opponents: 6, weather: 'dry', qualifying: false, carClass: 'f1', startTyre: 'SOFT' };
+        let cfg = { seed: "MONZA", laps: 5, time: "day", roadWidth: 18, trackRes: 800, difficulty: 'medium', opponents: 11, weather: 'dry', qualifying: false, carClass: 'f1', startTyre: 'SOFT' };
 
         // --- EVENT LISTENERS ---
         window.addEventListener('init-game', (e) => {
@@ -948,8 +948,8 @@
                 totalLaps = 1;
                 // Flying Start: Spawn player before start line with speed
                 // 800 pts. Start is 0. 
-                // Spawn at ~780.
-                const spawnIdx = Math.floor(cfg.trackRes * 0.96); 
+                // Increased Run-Up: Spawn at ~80% (approx 160 units before line)
+                const spawnIdx = Math.floor(cfg.trackRes * 0.80);
                 createF1Car(spawnIdx, true); // True = flying
                 
                 // NO AI in qualifying (solitary session)
@@ -1511,14 +1511,17 @@
                     const boxCenter = p1.clone().add(side.clone().multiplyScalar(maxOffset));
                     pitBoxPosition = { x: boxCenter.x, y: boxCenter.y, z: boxCenter.z, radius: 15 };
                     
-                    const boxGeo = new THREE.PlaneGeometry(16, 12); boxGeo.rotateX(-Math.PI/2);
+                    // Rotated/Resized Pit Box (Long side parallel to track)
+                    // Width (X) = 10, Length (Z) = 26.
+                    const boxGeo = new THREE.PlaneGeometry(10, 26); boxGeo.rotateX(-Math.PI/2);
                     const boxMat = new THREE.MeshBasicMaterial({ color: 0x444444 });
                     const boxMesh = new THREE.Mesh(boxGeo, boxMat);
                     boxMesh.position.copy(boxCenter); boxMesh.position.y += 0.051;
+                    // Standard angle aligns Plane Height (Y->Z) with Forward
                     const angle = Math.atan2(tan.x, tan.z); boxMesh.rotation.y = angle;
                     scene.add(boxMesh);
                     
-                    const markGeo = new THREE.PlaneGeometry(14, 8); markGeo.rotateX(-Math.PI/2);
+                    const markGeo = new THREE.PlaneGeometry(8, 22); markGeo.rotateX(-Math.PI/2);
                     const markMat = new THREE.MeshBasicMaterial({ color: 0xffff00, wireframe: true });
                     const markMesh = new THREE.Mesh(markGeo, markMat);
                     markMesh.position.copy(boxCenter); markMesh.position.y += 0.052; markMesh.rotation.y = angle;
