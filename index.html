@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>F1 Circuit Gen - v9.4 (Pit Glitch Fix)</title>
+    <title>F1 Circuit Gen</title>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; user-select: none; touch-action: none; }
         
@@ -98,8 +98,19 @@
             display: none; z-index: 20; width: 600px;
             background: #222; padding: 20px; border-radius: 10px; border: 4px solid #111;
             box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            flex-direction: column; align-items: center;
         }
-        #lights-row { display: flex; justify-content: space-between; width: 100%; }
+        #lights-row { display: flex; justify-content: space-between; width: 100%; margin-bottom: 20px; }
+        #rpm-bar-container {
+            width: 100%; height: 20px; background: #111; border: 2px solid #444; border-radius: 4px; overflow: hidden;
+            position: relative;
+        }
+        #rpm-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #f1c40f 0%, #e74c3c 100%); transition: width 0.1s; }
+        #rpm-target-zone {
+            position: absolute; top: 0; height: 100%; background: rgba(46, 204, 113, 0.4); border-left: 2px solid #2ecc71; border-right: 2px solid #2ecc71;
+            left: 70%; width: 15%; /* Optimal Zone */
+        }
+        #rpm-label { color: #aaa; font-size: 10px; margin-top: 5px; font-weight: bold; letter-spacing: 1px; }
         .start-light {
             width: 80px; height: 80px; border-radius: 50%;
             background: #333; border: 4px solid #000;
@@ -401,6 +412,11 @@
                 <div class="start-light" id="light-4"></div>
                 <div class="start-light" id="light-5"></div>
             </div>
+            <div id="rpm-bar-container">
+                <div id="rpm-target-zone"></div>
+                <div id="rpm-bar"></div>
+            </div>
+            <div id="rpm-label">OPTIMAL REVS</div>
         </div>
         <div id="pit-msg"></div>
         <div id="reset-bar"><div id="reset-progress"></div></div>
@@ -708,6 +724,10 @@
         let resetTimer = 0;
         let inSand = false;
         
+        // Start Logic
+        let launchRPM = 0; // 0.0 - 1.0
+        let launchBoost = 1.0;
+
         // Audio
         let audioCtx, engineOsc, turboOsc, skidOsc, engineGain, turboGain, skidGain;
         let audioMuted = false;
@@ -953,9 +973,8 @@
                     
                     // Start Index logic:
                     // 0 is start line. Grid spots are BEHIND.
-                    // e.g. Spot 0 -> 790, Spot 1 -> 770...
-                    // Loop around trackRes (800)
-                    const distBack = (i + 1) * 20; 
+            // Tighter Grid: Reduced spacing (20 -> 12)
+            const distBack = (i + 1) * 12;
                     let spawnPtIdx = (cfg.trackRes + 0 - distBack) % cfg.trackRes;
                     if(spawnPtIdx < 0) spawnPtIdx += cfg.trackRes; // Handle negative
 
@@ -1033,6 +1052,8 @@
 
         function startCountdown(instant) {
             raceState = 'countdown';
+            launchRPM = 0; launchBoost = 1.0;
+
             const el = document.getElementById('countdown');
             const lights = [
                 document.getElementById('light-1'),
@@ -1052,7 +1073,7 @@
                 return;
             }
             
-            el.style.display = 'block';
+            el.style.display = 'flex';
             let stage = 0;
 
             const timer = setInterval(() => {
@@ -1078,7 +1099,26 @@
                     raceState = 'racing';
                     const now = Date.now();
                     raceStartTime = now; startTime = now;
-                    setTimeout(() => { el.style.display = 'none'; }, 1000);
+
+                    // CALCULATE START QUALITY
+                    // Target RPM: 0.70 - 0.85
+                    if (launchRPM >= 0.7 && launchRPM <= 0.85) {
+                        launchBoost = 1.3; // Perfect
+                        document.getElementById('lap-flash').innerText = "PERFECT LAUNCH";
+                        document.getElementById('lap-flash').style.color = "#2ecc71";
+                    } else if (launchRPM > 0.85) {
+                        launchBoost = 0.5; // Wheel Spin
+                        document.getElementById('lap-flash').innerText = "WHEEL SPIN";
+                        document.getElementById('lap-flash').style.color = "#e74c3c";
+                    } else {
+                        launchBoost = 0.7; // Bog Down
+                        document.getElementById('lap-flash').innerText = "SLOW GETAWAY";
+                        document.getElementById('lap-flash').style.color = "#f1c40f";
+                    }
+                    document.getElementById('lap-flash').style.display = 'block';
+                    setTimeout(() => { document.getElementById('lap-flash').style.display = 'none'; document.getElementById('lap-flash').style.color = "#2ecc71"; }, 2000);
+
+                    setTimeout(() => { el.style.display = 'none'; }, 500);
                     clearInterval(timer);
                 }
             }, 1000);
@@ -2191,6 +2231,22 @@
             if(!isRunning || isPaused) return;
             animId = requestAnimationFrame(animate);
             
+            // Handle Start RPM
+            if(raceState === 'countdown') {
+                if(inputs.up) launchRPM += 0.02; else launchRPM -= 0.02;
+                if(launchRPM > 1) launchRPM = 1; if(launchRPM < 0) launchRPM = 0;
+
+                const bar = document.getElementById('rpm-bar');
+                if(bar) bar.style.width = (launchRPM * 100) + '%';
+
+                // Audio revving
+                if(audioCtx) {
+                    const revFreq = 50 + (launchRPM * 150);
+                    engineOsc.frequency.setTargetAtTime(revFreq, audioCtx.currentTime, 0.1);
+                    turboOsc.frequency.setTargetAtTime(revFreq * 1.5, audioCtx.currentTime, 0.1);
+                }
+            }
+
             // console.log("animating"); // Verbose
             // Allow physics loop in 'racing' AND 'finished' (for coasting)
             if(raceState === 'racing' || raceState === 'finished') {
@@ -2268,8 +2324,13 @@
                     let enginePower = -8000;
                     if (cfg.carClass === 'mini') enginePower = -3500;
 
-                    if(inputs.up) force = enginePower;
+                    // APPLY START BOOST/PENALTY (First 3s)
+                    if (Date.now() - raceStartTime < 3000) {
+                        enginePower *= launchBoost;
+                    }
 
+                    if(inputs.up) force = enginePower;
+                    
                     // PROGRESSIVE BRAKING (Like Steering)
                     if(inputs.brake) {
                         currentBrake += 0.2; // Ramp up
@@ -2287,7 +2348,7 @@
 
                     // NON-LINEAR STEERING
                     let inputVal = inputs.left ? 1 : (inputs.right ? -1 : 0);
-                    
+
                     if (inputVal !== 0) {
                         // Ramp up steering over time when key held
                         // Store a "steer time" or just use linear interpolation with a curve
@@ -2304,7 +2365,7 @@
                     // Clamp
                     if(currentSteer > 1) currentSteer = 1;
                     if(currentSteer < -1) currentSteer = -1;
-
+                    
                     // Apply Non-Linear Curve (x^2 or x^1.5)
                     // This gives precision near center (0) and speed at edges (1)
                     const curve = Math.abs(currentSteer) ** 1.5;
@@ -2387,14 +2448,22 @@
                     const dz = pos.z - pitBoxPosition.z;
                     const distSq = dx*dx + dz*dz;
                     const msgEl = document.getElementById('pit-msg');
+                    
+                    // Assist Braking on Pit Entry (within 900 sq dist ~ 30m)
+                    if (distSq < 900 && kph > 60) {
+                        brakeVal = Math.max(brakeVal, 100);
+                        force = 0;
+                    }
 
-                    // Increased trigger area
+                    // Trigger Area
                     if (distSq < 225) { 
                         if (kph > 10) {
                             msgEl.style.display = 'block';
                             msgEl.innerText = "PIT ENTRY: TOO FAST!";
                             msgEl.style.borderColor = '#e74c3c';
                             isPitting = false; pitTimer = 0;
+                            // Auto-brake hard inside box
+                            brakeVal = 200;
                         } else if (kph > 1) {
                             msgEl.style.display = 'block';
                             msgEl.innerText = "STOP CAR";
