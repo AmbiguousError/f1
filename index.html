@@ -256,12 +256,24 @@
             <button class="opt-btn" onclick="setRaces(10, this)">10</button>
         </div>
 
-        <!-- CARS COUNT -->
-        <div class="menu-row">
+        <!-- TEAM SELECT -->
+        <div class="menu-row" id="team-select-row">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">TEAM</span>
+            <div style="display:flex; align-items:center; width:220px; justify-content:space-between; background:rgba(0,0,0,0.5); padding:5px; border-radius:4px; border:1px solid #444;">
+                <button class="opt-btn" onclick="cycleTeam(-1)" style="padding:4px 8px; font-size:10px;">◄</button>
+                <div style="text-align:center; flex-grow:1;">
+                    <div id="team-name" style="color:#fff; font-size:12px; font-weight:bold; letter-spacing:1px;">RED BULL</div>
+                    <div id="driver-name" style="color:#aaa; font-size:10px;">VERSTAPPEN</div>
+                </div>
+                <button class="opt-btn" onclick="cycleTeam(1)" style="padding:4px 8px; font-size:10px;">►</button>
+            </div>
+        </div>
+
+        <!-- CARS COUNT (Hidden by default, shown for custom races maybe?) -->
+        <div class="menu-row" style="display:none;">
             <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">CARS</span>
-            <button class="opt-btn selected" onclick="setCars(6, this)">6</button>
-            <button class="opt-btn" onclick="setCars(10, this)">10</button>
-            <button class="opt-btn" onclick="setCars(12, this)">12</button>
+            <button class="opt-btn" onclick="setCars(6, this)">6</button>
+            <button class="opt-btn selected" onclick="setCars(20, this)">FULL</button>
         </div>
 
         <div class="menu-row">
@@ -318,6 +330,7 @@
                 <p><span class="key">A</span> / <span class="key">←</span> STEER LEFT</p>
                 <p><span class="key">D</span> / <span class="key">→</span> STEER RIGHT</p>
                 <p><span class="key">SPC</span> (HOLD) RESET</p>
+                <p><span class="key">T</span> PIT STRATEGY</p>
                 <p><span class="key">ESC</span> PAUSE</p>
             </div>
             <div class="guide-section">
@@ -414,12 +427,46 @@
         let seasonRaces = 3;
         let selectedDifficulty = 'medium';
         let selectedZoom = 2; 
-        let selectedCars = 6;
+        let selectedCars = 20;
         let selectedWeather = 'dry';
         let useQualifying = false;
         let isMuted = false;
         let selectedClass = 'f1';
         
+        // Team Selection Logic
+        let playerDriverIndex = 0;
+        let uiDrivers = [ { name: "L. Hamilton", team: "Ferrari" } ]; // Default fallback
+
+        window.cycleTeam = function(dir) {
+            playerDriverIndex += dir;
+            if (window.DRIVERS_DATA) uiDrivers = window.DRIVERS_DATA;
+
+            if (playerDriverIndex < 0) playerDriverIndex = uiDrivers.length - 1;
+            if (playerDriverIndex >= uiDrivers.length) playerDriverIndex = 0;
+
+            updateTeamDisplay();
+        };
+
+        function updateTeamDisplay() {
+            if (window.DRIVERS_DATA) uiDrivers = window.DRIVERS_DATA;
+            const d = uiDrivers[playerDriverIndex];
+            if(!d) return;
+            document.getElementById('team-name').innerText = d.team.toUpperCase();
+            document.getElementById('driver-name').innerText = d.name.toUpperCase();
+
+            // Set car color hint?
+            // document.getElementById('team-name').style.color = '#' + d.color.toString(16);
+        }
+
+        window.initTeamUI = function() {
+            if(window.DRIVERS_DATA) {
+                uiDrivers = window.DRIVERS_DATA;
+                // Default to Verstappen (Index 2) if desired, or 0
+                playerDriverIndex = 2;
+                updateTeamDisplay();
+            }
+        };
+
         window.setMode = function(mode, el) {
             gameMode = mode;
             document.getElementById('mode-single').classList.toggle('selected', mode === 'single');
@@ -500,7 +547,8 @@
                         opponents: selectedCars,
                         weather: selectedWeather,
                         qualifying: useQualifying,
-                        carClass: selectedClass
+                        carClass: selectedClass,
+                        playerDriverIndex: playerDriverIndex
                     } 
                 }));
             }, 100);
@@ -537,6 +585,21 @@
     <script type="module">
         import * as THREE from 'three';
         import * as CANNON from 'cannon-es';
+        import { DRIVERS_2025 } from './drivers.js';
+
+        // Expose to UI
+        window.DRIVERS_DATA = DRIVERS_2025;
+        if(window.initTeamUI) window.initTeamUI();
+
+        // --- TYRE CONFIG ---
+        const TYRE_COMPOUNDS = {
+            SOFT: { name: "SOFT", color: "#e74c3c", grip: 5.5, wear: 1.5, wetGrip: 1.0 },
+            MED:  { name: "MED",  color: "#f1c40f", grip: 5.0, wear: 1.0, wetGrip: 1.2 },
+            HARD: { name: "HARD", color: "#ecf0f1", grip: 4.5, wear: 0.6, wetGrip: 1.5 },
+            INTER:{ name: "INTER",color: "#2ecc71", grip: 4.0, wear: 1.2, wetGrip: 4.0 },
+            WET:  { name: "WET",  color: "#3498db", grip: 3.5, wear: 1.0, wetGrip: 5.0 }
+        };
+        const TYRE_KEYS = ["SOFT", "MED", "HARD", "INTER", "WET"];
 
         // --- GLOBAL VARIABLES ---
         let scene, camera, renderer, world;
@@ -556,6 +619,15 @@
         let nextCheckpoint = 1; 
         let sessionType = 'race'; // 'race' or 'qualifying'
         let tyreLife = 100.0;
+        let currentTyre = "SOFT";
+        let nextTyre = "MED";
+
+        // Weather Vars
+        let worldWetness = 0.0; // 0 = Dry, 1 = Wet
+        let targetWetness = 0.0;
+        let weatherTimer = 0;
+        let nextWeatherEvent = 0;
+
         let pitBoxPosition = null;
         let isPitting = false;
         let pitTimer = 0;
@@ -613,22 +685,48 @@
             cfg.time = d.time;
             cfg.laps = d.laps;
             cfg.difficulty = d.difficulty;
-            cfg.opponents = d.opponents;
             cfg.weather = d.weather;
             cfg.qualifying = d.qualifying;
             cfg.carClass = d.carClass;
             zoomLevel = d.zoom;
             
-            // Re-init drivers list based on opponents count
+            // Re-init drivers list based on selection
             season.drivers = [];
-            // Player is always index 0
-            season.drivers.push({ name: "Player", color: 0xdc0000, points: 0, isPlayer: true, lastLapTime: 0 });
-            // AI
-            const aiCount = cfg.opponents - 1;
-            for(let i=0; i<aiCount; i++) {
-                const n = AI_NAMES[i % AI_NAMES.length];
-                const c = AI_COLORS[i % AI_COLORS.length];
-                season.drivers.push({ name: n, color: c, points: 0, isPlayer: false, lastLapTime: 0 });
+
+            // 1. Add Player (Selected Driver)
+            const pIdx = d.playerDriverIndex || 0;
+            const pDriver = DRIVERS_2025[pIdx];
+            season.drivers.push({
+                name: pDriver.name,
+                color: pDriver.color,
+                points: 0,
+                isPlayer: true,
+                lastLapTime: 0,
+                speed: pDriver.speed,
+                cornering: pDriver.cornering
+            });
+
+            // 2. Add AI (Everyone else)
+            // Limit based on car count setting (default 20 for full grid, or less)
+            let aiCount = d.opponents - 1;
+            if (d.opponents === 'ALL') aiCount = DRIVERS_2025.length - 1;
+
+            let added = 0;
+            for(let i=0; i<DRIVERS_2025.length; i++) {
+                if (i === pIdx) continue; // Skip player
+                if (added >= aiCount) break;
+
+                const ai = DRIVERS_2025[i];
+                season.drivers.push({
+                    name: ai.name,
+                    color: ai.color,
+                    points: 0,
+                    isPlayer: false,
+                    lastLapTime: 0,
+                    speed: ai.speed,
+                    cornering: ai.cornering
+                });
+                added++;
             }
             
             // Default Grid (Player last)
@@ -749,6 +847,15 @@
             skidmarks = []; trackPoints = []; checkpoints = []; visualWheels = []; sandTraps = []; aiCars = [];
             particles = [];
             tyreLife = 100.0;
+
+            // Weather Init
+            worldWetness = cfg.weather === 'wet' ? 1.0 : 0.0;
+            targetWetness = worldWetness;
+            weatherTimer = 0;
+            nextWeatherEvent = 45 + (rng() * 45); // Use RNG for consistency
+
+            currentTyre = cfg.weather === 'wet' ? "WET" : "SOFT";
+            nextTyre = cfg.weather === 'wet' ? "INTER" : "MED";
             pitBoxPosition = null; isPitting = false; pitTimer = 0;
 
             setupGraphics();
@@ -815,8 +922,12 @@
             document.getElementById('mute-btn').style.display = 'flex';
             document.getElementById('cam-btn').style.display = 'flex';
             document.getElementById('lap-val').innerText = sessionType === 'qualifying' ? "QUALIFYING" : `1/${totalLaps}`;
-            document.getElementById('tyre-val').innerText = "100%";
-            document.getElementById('tyre-val').style.color = "#2ecc71";
+
+            const comp = TYRE_COMPOUNDS[currentTyre];
+            const nextComp = TYRE_COMPOUNDS[nextTyre];
+            const tyreEl = document.getElementById('tyre-val');
+            tyreEl.innerHTML = `<span style="color:${comp.color}">${currentTyre[0]}</span> <span style="color:#2ecc71">100%</span> <span style="font-size:10px; color:#aaa;">➝<span style="color:${nextComp.color}">${nextTyre[0]}</span></span>`;
+
             document.getElementById('pit-msg').style.display = 'none';
             
             const flash = document.getElementById('lap-flash');
@@ -932,24 +1043,22 @@
             skidGeo = new THREE.PlaneGeometry(0.8, 0.8);
             skidMat = new THREE.MeshBasicMaterial({ color: 0x111111, transparent: true, opacity: 0.6, depthWrite: false });
             
-            // Rain System
-            if (cfg.weather === 'wet') {
-                const rainCount = 10000;
-                const rainGeo = new THREE.BufferGeometry();
-                const rainPos = [];
-                for (let i = 0; i < rainCount; i++) {
-                    const x = (Math.random() - 0.5) * 400;
-                    const y = Math.random() * 200;
-                    const z = (Math.random() - 0.5) * 400;
-                    rainPos.push(x, y, z);
-                }
-                rainGeo.setAttribute('position', new THREE.Float32BufferAttribute(rainPos, 3));
-                const rainMat = new THREE.PointsMaterial({
-                    color: 0xaaaaaa, size: 0.5, transparent: true, opacity: 0.6
-                });
-                rainSystem = new THREE.Points(rainGeo, rainMat);
-                scene.add(rainSystem);
+            // Rain System - Always created, visibility controlled by weather
+            const rainCount = 15000;
+            const rainGeo = new THREE.BufferGeometry();
+            const rainPos = [];
+            for (let i = 0; i < rainCount; i++) {
+                const x = (Math.random() - 0.5) * 400;
+                const y = Math.random() * 200;
+                const z = (Math.random() - 0.5) * 400;
+                rainPos.push(x, y, z);
             }
+            rainGeo.setAttribute('position', new THREE.Float32BufferAttribute(rainPos, 3));
+            const rainMat = new THREE.PointsMaterial({
+                color: 0xaaaaaa, size: 0.5, transparent: true, opacity: 0.0, depthWrite: false
+            });
+            rainSystem = new THREE.Points(rainGeo, rainMat);
+            scene.add(rainSystem);
 
             window.addEventListener('resize', () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
@@ -1439,7 +1548,8 @@
                 lookAhead: 20 + Math.floor(Math.random() * 10)
             };
             
-            aiCars.push({ vehicle, body, wheels, skill, id, name, lap: 1, nextCp: 1, finished: false, finishTime: 0, offTrackTimer: 0 }); // TARGET CP1
+            const startTyre = cfg.weather === 'wet' ? "WET" : "SOFT";
+            aiCars.push({ vehicle, body, wheels, skill, id, name, lap: 1, nextCp: 1, finished: false, finishTime: 0, offTrackTimer: 0, tyre: startTyre });
         }
 
         function createF1Car(startIdx, flyingStart) {
@@ -1521,6 +1631,10 @@
                 // Cleaned Inputs: Space handles Brake AND Reset
                 if(k === ' ') { inputs.brake = v; setBtn('btn-b', v); }
                 if(k === 'escape' && v) togglePause();
+                if(k === 't' && v) {
+                    const currIdx = TYRE_KEYS.indexOf(nextTyre);
+                    nextTyre = TYRE_KEYS[(currIdx + 1) % TYRE_KEYS.length];
+                }
             };
             const setBtn = (id, active) => {
                 const b = document.getElementById(id);
@@ -1781,8 +1895,11 @@
 
             // AI Logic
             aiCars.forEach(ai => {
-                // REMOVED 'if(ai.finished) return' -> AI continues to drive
-                
+                // Update AI Friction
+                const aiComp = TYRE_COMPOUNDS[ai.tyre || "SOFT"];
+                const aiGrip = aiComp.grip * (1.0 - worldWetness) + aiComp.wetGrip * worldWetness;
+                ai.vehicle.wheelInfos.forEach(w => w.frictionSlip = aiGrip);
+
                 let minD = Infinity, cIdx = 0; const pos = ai.body.position;
                 for(let i=0; i<trackPoints.length; i+=5) {
                     const d = (pos.x - trackPoints[i].x)**2 + (pos.z - trackPoints[i].z)**2;
@@ -1804,6 +1921,13 @@
                     if (ai.nextCp === 0) { 
                         ai.lap++; 
                         ai.nextCp = 1; 
+
+                        // AI Strategy
+                        let wrongTyre = false;
+                        if (worldWetness > 0.5 && ai.tyre !== "WET" && ai.tyre !== "INTER") wrongTyre = true;
+                        if (worldWetness < 0.3 && (ai.tyre === "WET" || ai.tyre === "INTER")) wrongTyre = true;
+                        if (wrongTyre) ai.tyre = worldWetness > 0.5 ? "WET" : "SOFT";
+
                         // CHECK AI FINISH
                         if(ai.lap > totalLaps && !ai.finished) {
                             ai.finished = true;
@@ -1818,7 +1942,7 @@
                 if (onSurface !== 'tarmac') { lookAheadVal = 5; }
                 
                 // WET WEATHER AI ADJUSTMENT
-                if (cfg.weather === 'wet') {
+                if (worldWetness > 0.5) {
                     lookAheadVal = Math.max(10, lookAheadVal - 5); 
                 }
 
@@ -1936,6 +2060,34 @@
             // console.log("animating"); // Verbose
             // Allow physics loop in 'racing' AND 'finished' (for coasting)
             if(raceState === 'racing' || raceState === 'finished') {
+                // --- WEATHER LOGIC ---
+                if (raceState === 'racing') {
+                    weatherTimer += 1/60;
+                    if(weatherTimer > nextWeatherEvent) {
+                        targetWetness = 1.0 - targetWetness; // Toggle
+                        nextWeatherEvent += 60 + Math.random() * 120;
+
+                        const msg = document.getElementById('pit-msg');
+                        msg.style.display = 'block';
+                        msg.innerText = targetWetness > 0.5 ? "RAIN STARTING" : "TRACK DRYING";
+                        msg.style.borderColor = '#3498db';
+                        setTimeout(() => { if(!isPitting) msg.style.display = 'none'; }, 4000);
+                    }
+                }
+
+                const diff = targetWetness - worldWetness;
+                if(Math.abs(diff) > 0.0005) worldWetness += diff * 0.0005;
+
+                if(rainSystem) {
+                    rainSystem.material.opacity = worldWetness * 0.6;
+                    if (scene.background && scene.background.isColor) {
+                        const base = cfg.time === 'sunset' ? new THREE.Color(0x3e2723) : new THREE.Color(0x87CEEB);
+                        const wet = new THREE.Color(0x4a5a6a);
+                        scene.background.lerpColors(base, wet, worldWetness);
+                        if (scene.fog) scene.fog.color.copy(scene.background);
+                    }
+                }
+
                 world.step(1/60);
                 const speed = chassisBody.velocity.length(); const kph = speed * 3.6;
                 
@@ -2046,27 +2198,29 @@
                 else if(onSurface === 'grass') { force *= 0.7; chassisBody.velocity.scale(0.98, chassisBody.velocity); if(speed > 5) spawnDust(pos, 0x2e8b57); }
                 
                 // TYRE DEGRADATION LOGIC
-                // Degrades based on Speed and Cornering force
-                // 0.0001 per tick per unit of speed + 0.0005 per tick per steering*speed unit
+                const comp = TYRE_COMPOUNDS[currentTyre];
+
                 if (raceState === 'racing' && onSurface === 'tarmac' && speed > 10) {
-                    const wearRate = (speed * 0.0001) + (Math.abs(currentSteer) * speed * 0.0005);
+                    let wearRate = (speed * 0.0001) + (Math.abs(currentSteer) * speed * 0.0005);
+                    wearRate *= comp.wear;
                     tyreLife -= wearRate;
                     if (tyreLife < 0) tyreLife = 0;
 
                     // Update HUD
                     const tyreEl = document.getElementById('tyre-val');
-                    tyreEl.innerText = Math.ceil(tyreLife) + "%";
-                    if (tyreLife > 70) tyreEl.style.color = "#2ecc71"; // Green
-                    else if (tyreLife > 40) tyreEl.style.color = "#f1c40f"; // Yellow
-                    else tyreEl.style.color = "#e74c3c"; // Red
+                    let lifeColor = "#2ecc71";
+                    if(tyreLife < 40) lifeColor = "#e74c3c";
+                    else if(tyreLife < 70) lifeColor = "#f1c40f";
+
+                    const nextComp = TYRE_COMPOUNDS[nextTyre];
+                    tyreEl.innerHTML = `<span style="color:${comp.color}">${currentTyre[0]}</span> <span style="color:${lifeColor}">${Math.ceil(tyreLife)}%</span> <span style="font-size:10px; color:#aaa;">➝<span style="color:${nextComp.color}">${nextTyre[0]}</span></span>`;
                 }
                 
-                // Update Friction based on Tyre Wear
-                // 100% life = 100% grip. 0% life = 50% grip.
-                const baseGrip = cfg.weather === 'wet' ? 2.2 : 5.0;
+                // Update Friction based on Tyre Wear & Weather
+                const idealGrip = comp.grip * (1.0 - worldWetness) + comp.wetGrip * worldWetness;
                 const wearFactor = 0.5 + (0.5 * (tyreLife / 100));
-                const currentGrip = baseGrip * wearFactor;
-
+                const currentGrip = idealGrip * wearFactor;
+                
                 vehicle.wheelInfos.forEach(w => w.frictionSlip = currentGrip);
 
                 // --- PIT STOP LOGIC ---
@@ -2105,6 +2259,7 @@
                                 msgEl.innerText = `CHANGING TYRES... ${pct}%`;
                             } else {
                                 tyreLife = 100;
+                                currentTyre = nextTyre;
                                 msgEl.innerText = "GO! GO! GO!";
                                 msgEl.style.borderColor = '#2ecc71';
                             }
