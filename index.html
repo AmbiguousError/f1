@@ -94,10 +94,19 @@
         #reset-progress { width: 0%; height: 100%; background: #e74c3c; }
 
         #countdown {
-            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 150px; font-weight: 900; color: #fff; font-style: italic;
-            text-shadow: 5px 5px 0 #e74c3c; display: none; z-index: 20;
+            position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
+            display: none; z-index: 20; width: 600px;
+            background: #222; padding: 20px; border-radius: 10px; border: 4px solid #111;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
+        #lights-row { display: flex; justify-content: space-between; width: 100%; }
+        .start-light {
+            width: 80px; height: 80px; border-radius: 50%;
+            background: #333; border: 4px solid #000;
+            box-shadow: inset 0 0 20px #000;
+            transition: background 0.1s;
+        }
+        .start-light.on { background: #ff0000; box-shadow: 0 0 30px #ff0000, inset 0 0 10px #500; }
         
         #finish-screen {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -269,11 +278,22 @@
             </div>
         </div>
 
-        <!-- CARS COUNT (Hidden by default, shown for custom races maybe?) -->
-        <div class="menu-row" style="display:none;">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">CARS</span>
+        <!-- TYRE SELECT -->
+        <div class="menu-row">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">TYRES</span>
+            <button class="opt-btn selected" onclick="setStartTyre('SOFT', this)" style="color:#e74c3c">S</button>
+            <button class="opt-btn" onclick="setStartTyre('MED', this)" style="color:#f1c40f">M</button>
+            <button class="opt-btn" onclick="setStartTyre('HARD', this)" style="color:#ecf0f1">H</button>
+            <button class="opt-btn" onclick="setStartTyre('INTER', this)" style="color:#2ecc71">I</button>
+            <button class="opt-btn" onclick="setStartTyre('WET', this)" style="color:#3498db">W</button>
+        </div>
+
+        <!-- CARS COUNT -->
+        <div class="menu-row">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">GRID</span>
             <button class="opt-btn" onclick="setCars(6, this)">6</button>
-            <button class="opt-btn selected" onclick="setCars(20, this)">FULL</button>
+            <button class="opt-btn" onclick="setCars(10, this)">10</button>
+            <button class="opt-btn selected" onclick="setCars(20, this)">20</button>
         </div>
 
         <div class="menu-row">
@@ -372,7 +392,15 @@
     </div>
 
     <div id="ui-layer">
-        <div id="countdown"></div>
+        <div id="countdown">
+            <div id="lights-row">
+                <div class="start-light" id="light-1"></div>
+                <div class="start-light" id="light-2"></div>
+                <div class="start-light" id="light-3"></div>
+                <div class="start-light" id="light-4"></div>
+                <div class="start-light" id="light-5"></div>
+            </div>
+        </div>
         <div id="pit-msg"></div>
         <div id="reset-bar"><div id="reset-progress"></div></div>
         
@@ -432,6 +460,7 @@
         let useQualifying = false;
         let isMuted = false;
         let selectedClass = 'f1';
+        let selectedStartTyre = 'SOFT';
         
         // Team Selection Logic
         let playerDriverIndex = 0;
@@ -478,6 +507,11 @@
 
         window.setClass = function(mode, el) {
             selectedClass = mode;
+            updateSelection(el);
+        };
+
+        window.setStartTyre = function(tyre, el) {
+            selectedStartTyre = tyre;
             updateSelection(el);
         };
 
@@ -548,7 +582,8 @@
                         weather: selectedWeather,
                         qualifying: useQualifying,
                         carClass: selectedClass,
-                        playerDriverIndex: playerDriverIndex
+                        playerDriverIndex: playerDriverIndex,
+                        startTyre: selectedStartTyre
                     } 
                 }));
             }, 100);
@@ -677,7 +712,7 @@
         ];
 
         // Configuration
-        let cfg = { seed: "MONZA", laps: 5, time: "day", roadWidth: 18, trackRes: 800, difficulty: 'medium', opponents: 6, weather: 'dry', qualifying: false, carClass: 'f1' };
+        let cfg = { seed: "MONZA", laps: 5, time: "day", roadWidth: 18, trackRes: 800, difficulty: 'medium', opponents: 6, weather: 'dry', qualifying: false, carClass: 'f1', startTyre: 'SOFT' };
 
         // --- EVENT LISTENERS ---
         window.addEventListener('init-game', (e) => {
@@ -688,6 +723,7 @@
             cfg.weather = d.weather;
             cfg.qualifying = d.qualifying;
             cfg.carClass = d.carClass;
+            cfg.startTyre = d.startTyre;
             zoomLevel = d.zoom;
             
             // Re-init drivers list based on selection
@@ -854,8 +890,14 @@
             weatherTimer = 0;
             nextWeatherEvent = 45 + (rng() * 45); // Use RNG for consistency
 
-            currentTyre = cfg.weather === 'wet' ? "WET" : "SOFT";
-            nextTyre = cfg.weather === 'wet' ? "INTER" : "MED";
+            currentTyre = cfg.startTyre || "SOFT";
+            // Default next tyre logic
+            if (currentTyre === "SOFT") nextTyre = "MED";
+            else if (currentTyre === "MED") nextTyre = "HARD";
+            else if (currentTyre === "HARD") nextTyre = "SOFT";
+            else if (currentTyre === "WET") nextTyre = "INTER";
+            else nextTyre = "WET";
+
             pitBoxPosition = null; isPitting = false; pitTimer = 0;
 
             setupGraphics();
@@ -926,7 +968,11 @@
             const comp = TYRE_COMPOUNDS[currentTyre];
             const nextComp = TYRE_COMPOUNDS[nextTyre];
             const tyreEl = document.getElementById('tyre-val');
-            tyreEl.innerHTML = `<span style="color:${comp.color}">${currentTyre[0]}</span> <span style="color:#2ecc71">100%</span> <span style="font-size:10px; color:#aaa;">➝<span style="color:${nextComp.color}">${nextTyre[0]}</span></span>`;
+            if(comp && nextComp) {
+                tyreEl.innerHTML = `<span style="color:${comp.color}">${currentTyre[0]}</span> <span style="color:#2ecc71">100%</span> <span style="font-size:10px; color:#aaa;">➝<span style="color:${nextComp.color}">${nextTyre[0]}</span></span>`;
+            } else {
+                tyreEl.innerText = "100%";
+            }
 
             document.getElementById('pit-msg').style.display = 'none';
             
@@ -970,29 +1016,47 @@
         function startCountdown(instant) {
             raceState = 'countdown';
             const el = document.getElementById('countdown');
+            const lights = [
+                document.getElementById('light-1'),
+                document.getElementById('light-2'),
+                document.getElementById('light-3'),
+                document.getElementById('light-4'),
+                document.getElementById('light-5')
+            ];
             
+            lights.forEach(l => l.classList.remove('on'));
+
             if (instant) {
                 raceState = 'racing';
-                // For flying lap, timer starts when we cross line (handled in logic)
-                // But we need a reference start
                 raceStartTime = Date.now(); 
                 startTime = Date.now(); 
-                // Don't show countdown
                 animate(); 
                 return;
             }
             
             el.style.display = 'block';
-            let count = 5; 
-            el.innerText = "● ● ● ● ●"; el.style.color = "#ff0000"; el.style.fontSize = "80px"; el.style.letterSpacing = "20px";
+            let stage = 0;
 
             const timer = setInterval(() => {
                 if(!isRunning) { clearInterval(timer); return; }
-                count--;
-                if(count > 0) {
-                    el.style.letterSpacing = "0px"; el.style.fontSize = "150px"; el.innerText = count;
+
+                stage++;
+
+                if (stage <= 5) {
+                    // Turn on lights one by one
+                    lights[stage-1].classList.add('on');
+                    // Play beep sound if possible?
+                    if(audioCtx) {
+                        const beep = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        beep.connect(gain); gain.connect(audioCtx.destination);
+                        beep.frequency.value = 440;
+                        gain.gain.value = 0.1;
+                        beep.start(); beep.stop(audioCtx.currentTime + 0.1);
+                    }
                 } else {
-                    el.innerText = "LIGHTS OUT"; el.style.color = "#2ecc71"; el.style.fontSize = "100px";
+                    // LIGHTS OUT
+                    lights.forEach(l => l.classList.remove('on'));
                     raceState = 'racing';
                     const now = Date.now();
                     raceStartTime = now; startTime = now;
