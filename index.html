@@ -1150,7 +1150,7 @@
             const sun = new THREE.DirectionalLight(0xffffff, cfg.weather === 'wet' ? 0.8 : 1.5);
             sun.position.set(100, 200, 50);
             sun.castShadow = true;
-            sun.shadow.mapSize.width = 4096; sun.shadow.mapSize.height = 4096;
+            sun.shadow.mapSize.width = 2048; sun.shadow.mapSize.height = 2048;
             const d = 150;
             sun.shadow.camera.left = -d; sun.shadow.camera.right = d;
             sun.shadow.camera.top = d; sun.shadow.camera.bottom = -d;
@@ -1166,7 +1166,7 @@
             skidMat = new THREE.MeshBasicMaterial({ color: 0x111111, transparent: true, opacity: 0.6, depthWrite: false });
             
             // Rain System - Always created, visibility controlled by weather
-            const rainCount = 15000;
+            const rainCount = 4000;
             const rainGeo = new THREE.BufferGeometry();
             const rainPos = [];
             for (let i = 0; i < rainCount; i++) {
@@ -1191,6 +1191,8 @@
         
         function spawnDust(pos, colorHex) {
             if(Math.random() > 0.3) return; 
+            if(particles.length > 50) return; // Limit particles
+
             const geo = new THREE.DodecahedronGeometry(0.3);
             const mat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.5 });
             const mesh = new THREE.Mesh(geo, mat);
@@ -1471,7 +1473,7 @@
             const pitLen = 80; // Extended length
             const pitVertices = []; const pitIndices = [];
             const pitWidth = 10;
-            const maxOffset = (cfg.roadWidth / 2) + 8;
+            const maxOffset = (cfg.roadWidth / 2) + 20; // Increased offset to move away from track
             
             for(let i = -pitLen; i <= pitLen; i++) {
                 let idx = (cfg.trackRes + i) % cfg.trackRes;
@@ -2463,8 +2465,9 @@
                     const distSq = dx*dx + dz*dz;
                     const msgEl = document.getElementById('pit-msg');
                     
-                    // Assist Braking on Pit Entry (within 900 sq dist ~ 30m)
-                    if (distSq < 900 && kph > 60) {
+                    // Assist Braking on Pit Entry (within 400 sq dist ~ 20m)
+                    // Reduced radius to avoid overlapping main track
+                    if (distSq < 400 && kph > 60) {
                         brakeVal = Math.max(brakeVal, 100);
                         force = 0;
                     }
@@ -2498,7 +2501,11 @@
                                 const pct = Math.floor((pitTimer/3.0)*100);
                                 // Show Next Tyre Choice
                                 const nC = TYRE_COMPOUNDS[nextTyre];
-                                msgEl.innerHTML = `CHANGING TO <span style="color:${nC.color}">${nextTyre}</span>... ${pct}%<br><span style="font-size:20px; color:#aaa">(PRESS T TO CHANGE)</span>`;
+                                msgEl.innerHTML = `
+                                    <div style="font-size:24px; margin-bottom:10px;">CHANGING TO <span style="color:${nC.color}; font-weight:bold;">${nextTyre}</span></div>
+                                    <div style="font-size:40px; font-weight:bold;">${pct}%</div>
+                                    <div style="font-size:16px; color:#aaa; margin-top:10px;">PRESS <span style="color:#fff; border:1px solid #fff; padding:0 5px;">T</span> TO CYCLE TYRE</div>
+                                `;
                             } else {
                                 tyreLife = 100;
                                 currentTyre = nextTyre;
