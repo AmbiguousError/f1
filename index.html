@@ -266,7 +266,8 @@
 
         <div id="row-seed" class="menu-row">
             <span style="color:#aaa; font-size: 12px; letter-spacing: 2px;">CIRCUIT SEED</span>
-            <input type="text" id="seed-input" value="MONZA" maxlength="12">
+            <input type="text" id="seed-input" value="MONZA" maxlength="12" style="width: 160px;">
+            <button class="opt-btn" onclick="randomizeSeed()" style="padding: 10px; margin-left: 5px;">🎲</button>
         </div>
 
         <div id="row-races" class="menu-row" style="display:none;">
@@ -583,6 +584,13 @@
         window.setZoom = function(z, el) {
             selectedZoom = z;
             updateSelection(el);
+        };
+
+        window.randomizeSeed = function() {
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            let res = "";
+            for(let i=0; i<8; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
+            document.getElementById('seed-input').value = res;
         };
 
         function updateSelection(el) {
@@ -1485,13 +1493,20 @@
                 
                 let currentOffset = 0;
                 const rampLen = 20;
+
+                // VISUAL FIX: Start offset so the INNER edge of pit lane aligns with OUTER edge of track
+                // Track Edge = cfg.roadWidth / 2
+                // Pit Lane Inner Edge = currentOffset - (pitWidth / 2)
+                // Therefore, Start Offset = (cfg.roadWidth / 2) + (pitWidth / 2)
+
+                const startOffset = (cfg.roadWidth / 2) + (pitWidth / 2);
                 
                 if (i < -pitLen + rampLen) {
                     const t = (i - (-pitLen)) / rampLen;
-                    currentOffset = (cfg.roadWidth/2) + (t * (maxOffset - (cfg.roadWidth/2)));
+                    currentOffset = startOffset + (t * (maxOffset - startOffset));
                 } else if (i > pitLen - rampLen) {
                     const t = (pitLen - i) / rampLen;
-                    currentOffset = (cfg.roadWidth/2) + (t * (maxOffset - (cfg.roadWidth/2)));
+                    currentOffset = startOffset + (t * (maxOffset - startOffset));
                 } else {
                     currentOffset = maxOffset;
                 }
