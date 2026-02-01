@@ -16,14 +16,16 @@
         /* HUD BAR */
         #hud {
             position: absolute; 
-            top: 10px; 
+            top: 2vmin;
             left: 2.5%; 
             width: 95%;
-            height: 80px;
+            height: 12vmin; /* Responsive Height */
+            min-height: 60px;
+            max-height: 90px;
             background: rgba(10, 10, 10, 0.75); 
             backdrop-filter: blur(6px);
             color: #fff; 
-            padding: 0 20px;
+            padding: 0 2vmin;
             box-sizing: border-box;
             display: flex; 
             flex-direction: row;
@@ -41,13 +43,13 @@
         .stat-group { display: flex; flex-direction: column; justify-content: center; }
         .stat-label { font-size: 10px; color: #888; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
         
-        #gear-val { color: #e74c3c; font-size: 42px; font-weight: 900; line-height: 1; font-family: monospace; margin-right: 15px; }
-        #speed-container { display: flex; flex-direction: column; align-items: flex-end; width: 70px; }
-        #speed-val { font-size: 32px; font-weight: 800; line-height: 1; font-family: monospace; }
-        .speed-unit { font-size: 10px; color: #aaa; font-weight: bold; }
+        #gear-val { color: #e74c3c; font-size: 6vmin; font-weight: 900; line-height: 1; font-family: monospace; margin-right: 2vmin; }
+        #speed-container { display: flex; flex-direction: column; align-items: flex-end; width: 10vmin; min-width: 60px; }
+        #speed-val { font-size: 5vmin; font-weight: 800; line-height: 1; font-family: monospace; }
+        .speed-unit { font-size: 1.5vmin; color: #aaa; font-weight: bold; }
 
-        .info-row { display: flex; align-items: baseline; gap: 8px; font-family: monospace; font-size: 16px; font-weight: 700; }
-        .info-label { color: #aaa; font-size: 11px; font-family: sans-serif; width: 45px; text-align: right; }
+        .info-row { display: flex; align-items: baseline; gap: 1vmin; font-family: monospace; font-size: 2.5vmin; font-weight: 700; }
+        .info-label { color: #aaa; font-size: 1.8vmin; font-family: sans-serif; width: 6vmin; text-align: right; }
         #pos-val { color: #f1c40f; }
         #total-time-val { color: #3498db; }
         #tyre-val { color: #2ecc71; transition: color 0.5s; }
@@ -223,26 +225,32 @@
         
         /* Mobile HUD Optimization */
         @media (max-width: 768px) {
-            #hud { height: 60px; padding: 0 10px; top: 5px; width: 98%; left: 1%; }
-            #gear-val { font-size: 28px; margin-right: 5px; }
-            #speed-val { font-size: 24px; }
-            .speed-unit { font-size: 8px; }
-            #speed-container { width: 50px; }
-            .info-row { font-size: 12px; gap: 4px; }
-            .info-label { width: 35px; font-size: 9px; }
-            #minimap-wrapper { width: 50px; height: 50px; margin-left: 5px; }
-            #minimap { width: 45px; height: 45px; }
-            .separator { margin: 0 8px; }
-            #mute-btn { top: 75px; right: 1%; width: 35px; height: 35px; font-size: 16px; }
-            #cam-btn { top: 120px; right: 1%; width: 35px; height: 35px; font-size: 16px; }
-            .controls { display: block; }
-            #reset-bar { bottom: 200px; }
+            #hud { top: 1vmin; width: 98%; left: 1%; }
+            #minimap-wrapper { width: 12vmin; height: 12vmin; margin-left: 1vmin; border-radius: 50%; overflow: hidden; }
+            #minimap { width: 12vmin; height: 12vmin; }
+            .separator { margin: 0 2vmin; }
+
+            #mute-btn { top: 15vmin; right: 2vmin; width: 8vmin; height: 8vmin; font-size: 4vmin; }
+            #cam-btn { top: 25vmin; right: 2vmin; width: 8vmin; height: 8vmin; font-size: 4vmin; }
+
+            .controls { display: block; height: 30vh; bottom: 0; }
+            .touch-btn { width: 15vmin; height: 15vmin; bottom: 5vmin; border-width: 1px; font-size: 4vmin; }
+
+            #btn-l { left: 5vmin; }
+            #btn-r { left: 25vmin; }
+            #btn-b { right: 25vmin; }
+            #btn-g { right: 5vmin; bottom: 10vmin; } /* Offset Gas */
+
+            #reset-bar { bottom: 35vh; }
             #finish-screen { padding: 20px; width: 95%; top: 50%; }
-            #finish-screen h1 { font-size: 24px; }
+            #finish-screen h1 { font-size: 6vmin; }
             .results-container { flex-direction: column; gap: 10px; }
             .guide-content { flex-direction: column; gap: 20px; padding: 15px; }
             #guide-screen { padding: 20px; text-align: center; }
             #guide-screen h1 { font-size: 24px; margin-bottom: 20px; }
+
+            #start-screen h1 { font-size: 10vmin !important; }
+            .menu-row { transform: scale(0.9); }
         }
 
     </style>
@@ -659,6 +667,8 @@
         import * as THREE from 'three';
         import * as CANNON from 'cannon-es';
         import { DRIVERS_2025 } from './drivers.js';
+        import { generateCircuit } from './track.js';
+        import { buildCarMesh, buildMiniMesh } from './car.js';
 
         // Expose to UI
         window.DRIVERS_DATA = DRIVERS_2025;
@@ -949,8 +959,15 @@
             setupGraphics();
             setupMinimap();
             setupPhysics();
-            generateCircuit();
-            setupMinimap(); 
+            
+            const trackData = generateCircuit(scene, world, cfg, rng);
+            trackPoints = trackData.trackPoints;
+            trackCurve = trackData.trackCurve;
+            checkpoints = trackData.checkpoints;
+            sandTraps = trackData.sandTraps;
+            pitBoxPosition = trackData.pitBoxPosition;
+
+            setupMinimap();
             // --- SESSION SETUP ---
             if (sessionType === 'qualifying') {
                 totalLaps = 1;
@@ -1383,201 +1400,6 @@
             world.defaultMaterial = defMat;
         }
 
-        function generateCircuit() {
-            const points = []; const segments = 30; const noiseZ = rng() * 100;
-            for (let i = 0; i < segments; i++) {
-                const t = (i / segments) * Math.PI * 2;
-                const r = 220 + Math.sin(t * 3) * 50 + Math.cos(t * 2 + noiseZ) * 50 + (rng() * 30);
-                const x = Math.cos(t) * r; const z = Math.sin(t) * r;
-                points.push(new THREE.Vector3(x, 0, z));
-            }
-            trackCurve = new THREE.CatmullRomCurve3(points, true);
-            trackCurve.tension = 0.5;
-            trackPoints = trackCurve.getSpacedPoints(cfg.trackRes);
-            const distFirstLast = trackPoints[0].distanceTo(trackPoints[trackPoints.length-1]);
-            if(distFirstLast < 1.0) trackPoints.pop();
-            checkpoints = [ trackPoints[0], trackPoints[Math.floor(trackPoints.length/3)], trackPoints[Math.floor(trackPoints.length*2/3)] ];
-
-            const grassGeo = new THREE.PlaneGeometry(1200, 1200); grassGeo.rotateX(-Math.PI/2);
-            const grassCol = cfg.time === 'sunset' ? 0x2e3b28 : 0x2e8b57;
-            const grassMat = new THREE.MeshStandardMaterial({ color: grassCol, roughness: 1.0, side: THREE.DoubleSide });
-            const grass = new THREE.Mesh(grassGeo, grassMat); grass.position.y = -0.1; grass.receiveShadow = true; scene.add(grass);
-
-            const roadWidth = cfg.roadWidth;
-            const trackGeo = new THREE.BufferGeometry();
-            const vertices = []; const colors = []; const indices = [];
-            const cAsphalt = new THREE.Color(0x555555); const cKerbRed = new THREE.Color(0xcc0000);
-            const cKerbWhite = new THREE.Color(0xffffff); const cLine = new THREE.Color(0xffffff);
-            const len = trackPoints.length;
-            const sandMat = new THREE.MeshStandardMaterial({ color: 0xd2b48c, roughness: 1.0 });
-            const sandTrapsMesh = new THREE.Group();
-
-            for(let i=0; i<len; i++) {
-                const p1 = trackPoints[i]; const p2 = trackPoints[(i+1)%len]; const p3 = trackPoints[(i+2)%len];
-                const tangent = new THREE.Vector3().subVectors(p2, p1).normalize();
-                const up = new THREE.Vector3(0, 1, 0);
-                const side = new THREE.Vector3().crossVectors(tangent, up).normalize();
-                const v1 = new THREE.Vector3().subVectors(p2, p1).normalize();
-                const v2 = new THREE.Vector3().subVectors(p3, p2).normalize();
-                const crossY = v1.x * v2.z - v1.z * v2.x;
-                if (Math.abs(crossY) > 0.04 && rng() > 0.5) { 
-                    const isLeftTurn = crossY > 0; const dir = isLeftTurn ? -1 : 1;
-                    const trapRadius = 10 + rng() * 5;
-                    const offset = (roadWidth/2) + trapRadius + 1.0; 
-                    const trapPos = p2.clone().add(side.clone().multiplyScalar(dir * offset));
-                    const sandGeo = new THREE.CircleGeometry(trapRadius, 8); sandGeo.rotateX(-Math.PI/2);
-                    const sm = new THREE.Mesh(sandGeo, sandMat); sm.position.copy(trapPos); sm.position.y = 0.02;
-                    sandTrapsMesh.add(sm); sandTraps.push({ pos: trapPos, r: trapRadius });
-                }
-                const w = roadWidth / 2; const kw = 2.0;
-                const offsets = [-w - kw, -w, -w + 0.5, w - 0.5, w, w + kw];
-                for(let j=0; j<offsets.length; j++) {
-                    const os = offsets[j];
-                    const v = new THREE.Vector3().copy(p1).add(side.clone().multiplyScalar(os));
-                    vertices.push(v.x, v.y + 0.05, v.z);
-                    let col = cAsphalt;
-                    if (j === 0 || j === 5) { const seg = Math.floor(i / 5); col = (seg % 2 === 0) ? cKerbRed : cKerbWhite; }
-                    else if (j === 1 || j === 4) { col = cLine; }
-                    colors.push(col.r, col.g, col.b);
-                }
-                const row = 6; const base = i * row; const nextBase = ((i + 1) % len) * row;
-                for(let k=0; k<5; k++) {
-                    indices.push(base + k, nextBase + k, base + k + 1);
-                    indices.push(nextBase + k, nextBase + k + 1, base + k + 1);
-                }
-            }
-            scene.add(sandTrapsMesh);
-            trackGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            trackGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-            trackGeo.setIndex(indices); trackGeo.computeVertexNormals();
-            
-            // WET WEATHER TRACK MATERIAL
-            const trackRough = cfg.weather === 'wet' ? 0.2 : 0.8;
-            const trackMetal = cfg.weather === 'wet' ? 0.4 : 0.0;
-
-            const trackMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: trackRough, metalness: trackMetal, flatShading: false, side: THREE.DoubleSide });
-            const trackMesh = new THREE.Mesh(trackGeo, trackMat); trackMesh.receiveShadow = true; scene.add(trackMesh);
-
-            // PHYSICS MESH FOR TRACK
-            // Convert BufferGeometry to Trimesh
-            const trimeshVerts = vertices;
-            const trimeshIndices = indices;
-            const trackShape = new CANNON.Trimesh(trimeshVerts, trimeshIndices);
-            const trackBody = new CANNON.Body({ mass: 0, material: world.defaultMaterial });
-            trackBody.addShape(trackShape);
-            world.addBody(trackBody);
-
-            // GRASS PLANE (Lowered slightly so we fall to it)
-            const groundBody = new CANNON.Body({ mass: 0, material: world.defaultMaterial });
-            const groundShape = new CANNON.Plane(); groundBody.addShape(groundShape); groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-            groundBody.position.y = -0.1;
-            world.addBody(groundBody);
-
-            const startPos = trackCurve.getPoint(0); const nextPos = trackCurve.getPoint(0.01);
-            const lineGeo = new THREE.BoxGeometry(cfg.roadWidth, 0.02, 1.5);
-            const lineMesh = new THREE.Mesh(lineGeo, new THREE.MeshBasicMaterial({color:0xffffff}));
-            lineMesh.position.copy(startPos); lineMesh.position.y = 0.06; lineMesh.lookAt(nextPos); scene.add(lineMesh);
-            
-            // --- PIT LANE GENERATION ---
-            generatePitLane();
-        }
-        
-        function generatePitLane() {
-            const pitLen = 80; // Extended length
-            const pitVertices = []; const pitIndices = [];
-            const pitWidth = 10;
-            const maxOffset = (cfg.roadWidth / 2) + 10; // Moved back closer
-            
-            for(let i = -pitLen; i <= pitLen; i++) {
-                let idx = (cfg.trackRes + i) % cfg.trackRes;
-                let nextIdx = (cfg.trackRes + i + 1) % cfg.trackRes;
-                
-                const p1 = trackPoints[idx]; const p2 = trackPoints[nextIdx];
-                const tan = new THREE.Vector3().subVectors(p2, p1).normalize();
-                const side = new THREE.Vector3(tan.z, 0, -tan.x).normalize();
-                
-                let currentOffset = 0;
-                const rampLen = 20;
-
-                // VISUAL FIX: Start offset so the INNER edge of pit lane aligns with OUTER edge of track
-                // Track Edge = cfg.roadWidth / 2
-                // Pit Lane Inner Edge = currentOffset - (pitWidth / 2)
-                // Therefore, Start Offset = (cfg.roadWidth / 2) + (pitWidth / 2)
-
-                const startOffset = (cfg.roadWidth / 2) + (pitWidth / 2);
-                
-                if (i < -pitLen + rampLen) {
-                    const t = (i - (-pitLen)) / rampLen;
-                    currentOffset = startOffset + (t * (maxOffset - startOffset));
-                } else if (i > pitLen - rampLen) {
-                    const t = (pitLen - i) / rampLen;
-                    currentOffset = startOffset + (t * (maxOffset - startOffset));
-                } else {
-                    currentOffset = maxOffset;
-                }
-                
-                const w = pitWidth / 2;
-                const vIn = p1.clone().add(side.clone().multiplyScalar(currentOffset - w));
-                const vOut = p1.clone().add(side.clone().multiplyScalar(currentOffset + w));
-                
-                pitVertices.push(vIn.x, vIn.y + 0.05, vIn.z);
-                pitVertices.push(vOut.x, vOut.y + 0.05, vOut.z);
-                
-                if (i < pitLen) {
-                    const base = (i + pitLen) * 2;
-                    pitIndices.push(base, base+1, base+2);
-                    pitIndices.push(base+1, base+3, base+2);
-                }
-                
-                if (i === 0) {
-                    const boxCenter = p1.clone().add(side.clone().multiplyScalar(maxOffset));
-                    pitBoxPosition = { x: boxCenter.x, y: boxCenter.y, z: boxCenter.z, radius: 15 };
-                    
-                    // Rotated/Resized Pit Box (Long side parallel to track)
-                    // Width (X) = 10, Length (Z) = 26.
-                    const boxGeo = new THREE.PlaneGeometry(10, 26); boxGeo.rotateX(-Math.PI/2);
-                    const boxMat = new THREE.MeshBasicMaterial({ color: 0x444444 });
-                    const boxMesh = new THREE.Mesh(boxGeo, boxMat);
-                    boxMesh.position.copy(boxCenter); boxMesh.position.y += 0.051;
-                    // Standard angle aligns Plane Height (Y->Z) with Forward
-                    const angle = Math.atan2(tan.x, tan.z); boxMesh.rotation.y = angle;
-                    scene.add(boxMesh);
-                    
-                    const markGeo = new THREE.PlaneGeometry(8, 22); markGeo.rotateX(-Math.PI/2);
-                    const markMat = new THREE.MeshBasicMaterial({ color: 0xffff00, wireframe: true });
-                    const markMesh = new THREE.Mesh(markGeo, markMat);
-                    markMesh.position.copy(boxCenter); markMesh.position.y += 0.052; markMesh.rotation.y = angle;
-                    scene.add(markMesh);
-                }
-            }
-            
-            const geo = new THREE.BufferGeometry();
-            geo.setAttribute('position', new THREE.Float32BufferAttribute(pitVertices, 3));
-            geo.setIndex(pitIndices); geo.computeVertexNormals();
-            const mat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9 });
-            const mesh = new THREE.Mesh(geo, mat); scene.add(mesh);
-
-            if (pitVertices.length > 0) {
-                const pitShape = new CANNON.Trimesh(pitVertices, pitIndices);
-                const pitBody = new CANNON.Body({ mass: 0, material: world.defaultMaterial });
-                pitBody.addShape(pitShape); world.addBody(pitBody);
-            }
-        }
-
-        const bodyGeo = new THREE.BoxGeometry(1.2, 0.5, 3.5);
-        { const pos = bodyGeo.attributes.position; for(let i=0; i<pos.count; i++) { if(pos.getZ(i) < -0.5) { pos.setX(i, pos.getX(i) * 0.6); pos.setY(i, pos.getY(i) * 0.7); } } bodyGeo.computeVertexNormals(); }
-        const noseGeo = new THREE.BoxGeometry(0.6, 0.25, 1.5);
-        const fwGeo = new THREE.BoxGeometry(2.8, 0.1, 0.6);
-        const podGeo = new THREE.BoxGeometry(0.6, 0.5, 1.5);
-        const rwGeo = new THREE.BoxGeometry(2.4, 0.6, 0.1);
-        const rwTopGeo = new THREE.BoxGeometry(2.4, 0.05, 0.8);
-        const haloGeo = new THREE.TorusGeometry(0.5, 0.05, 8, 20, Math.PI);
-        const helmGeo = new THREE.SphereGeometry(0.18);
-        const wGeoFront = new THREE.CylinderGeometry(0.45, 0.45, 0.6, 24);
-        const wGeoRear = new THREE.CylinderGeometry(0.6, 0.6, 0.85, 24); 
-        const wGeoMini = new THREE.CylinderGeometry(0.3, 0.3, 0.25, 24);
-        const wMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.7 });
-        const rimMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8 });
 
         const miniBodyGeo = new THREE.BoxGeometry(1.4, 0.6, 2.4);
         const miniRoofGeo = new THREE.BoxGeometry(1.3, 0.35, 1.4);
@@ -1783,80 +1605,11 @@
                 if(k === 't' && v) {
                     const currIdx = TYRE_KEYS.indexOf(nextTyre);
                     nextTyre = TYRE_KEYS[(currIdx + 1) % TYRE_KEYS.length];
-                }
-            };
-            const setBtn = (id, active) => {
-                const b = document.getElementById(id);
-                if(active) b.classList.add('active'); else b.classList.remove('active');
-            }
-            window.addEventListener('keydown', e => {
-                if (e.code === 'Escape') togglePause();
-                else handle(e.key.toLowerCase(), true, e);
-            });
-            window.addEventListener('keyup', e => {
-                if (e.code !== 'Escape') handle(e.key.toLowerCase(), false, e);
-            });
-            const bind = (id, k) => {
-                const el = document.getElementById(id);
-                el.addEventListener('touchstart', (e) => { e.preventDefault(); handle(k, true); });
-                el.addEventListener('touchend', (e) => { e.preventDefault(); handle(k, false); });
-            };
-            bind('btn-l', 'a'); bind('btn-r', 'd'); bind('btn-g', 'w'); bind('btn-b', ' ');
-        }
-
-        function resetCar() { teleportToTrack(chassisBody); document.getElementById('reset-bar').style.display = 'none'; resetTimer = 0; }
-
-        function teleportToTrack(body) {
-            let minD = Infinity, closest = trackPoints[0], closestIdx = 0;
-            const p = body.position;
-            for(let i=0; i<trackPoints.length; i+=10) {
-                const tp = trackPoints[i];
-                const dx = p.x - tp.x; const dy = p.y - tp.y; const dz = p.z - tp.z;
-                const d = dx*dx + dy*dy + dz*dz;
-                if(d < minD) { minD = d; closest = trackPoints[i]; closestIdx = i; }
-            }
-            const nextP = trackPoints[(closestIdx + 20) % trackPoints.length];
-            body.position.set(closest.x, closest.y + 2, closest.z);
-            body.velocity.set(0,0,0); body.angularVelocity.set(0,0,0);
-            const dummy = new THREE.Object3D(); dummy.position.copy(closest); dummy.lookAt(nextP);
-            body.quaternion.copy(dummy.quaternion);
-        }
-
-        const POINTS_SYSTEM = [25, 18, 15, 12, 10, 8];
-
-        function getRaceStandings() {
-            // Helper to get total race distance traveled
-            const getTotalDist = (pos, lap, nextCp) => {
-                let minD = Infinity, idx = 0;
-                // Find closest track point index
-                for(let i=0; i<trackPoints.length; i+=10) {
-                    const d = (pos.x - trackPoints[i].x)**2 + (pos.z - trackPoints[i].z)**2;
-                    if(d < minD) { minD = d; idx = i; }
-                }
-                
-                // Calculate total distance
-                // Base distance is (Laps Completed * Track Length) + Current Index
-                // Lap counter starts at 1.
-                // Distance = (lap - 1) * 800 + idx
-
-                let dist = ((lap - 1) * trackPoints.length) + idx;
-                
-                // Edge Case: Crossing the Line
-                // If a car has crossed the physical line (idx is small, e.g., 10) but the lap counter hasn't updated yet
-                // (because lap updates at CP0/StartLine logic which might have a small delay or threshold),
-                // their 'dist' would drop massively (e.g. 1600 -> 810).
-
-                // Conversely, if lap HAS updated (now Lap 2) but index is still 0/10, dist = 1610.
-
-                // The issue is synchronizing 'lap' variable with 'idx' position.
-                // AI updates lap when distance to CP0 < threshold.
-                // Player updates lap when distance to CP0 < threshold.
-
                 // To make this robust:
                 // If 'nextCp' is 1 (targeting first sector) AND index is very small (< 1/4 track), assume lap is correct.
                 // If 'nextCp' is 1 (targeting first sector) AND index is very large (> 3/4 track), it means they haven't crossed the logic line yet but physically have?
                 // No, if nextCp is 1, it means we are looking for CP1. We passed CP0.
-
+                
                 // Wrap Fix:
                 // If we JUST crossed the line (idx < 200) but lap counter is still lagging (unlikely with current synchronous logic), we might have an issue.
                 // However, the previous logic:
@@ -1864,7 +1617,7 @@
                 // This implies: "If I am targeting CP1 (meaning I haven't triggered CP1 yet, so I might be at start) and my index is low... add a lap?"
                 // Actually, if nextCp is 1, I *should* have already incremented the lap.
                 // Unless: 'nextCp' resets to 1 instantly on crossing line.
-
+                
                 // Let's simplify: Trust 'lap' and 'idx'.
                 // If lap=2, idx=10 -> Dist = 800 + 10 = 810.
                 // If lap=1, idx=790 -> Dist = 0 + 790 = 790.
@@ -2406,7 +2159,7 @@
                     // This gives precision near center (0) and speed at edges (1)
                     const curve = Math.abs(currentSteer) ** 1.5;
                     steering = Math.sign(currentSteer) * curve * maxSteer;
-
+                    
                     // ABS LOGIC
                     let maxBrakeForce = 150;
                     // If turning hard at speed, reduce max brake force to prioritize steering (ABS)
@@ -2495,8 +2248,7 @@
                             msgEl.innerText = "PIT ENTRY: TOO FAST!";
                             msgEl.style.borderColor = '#e74c3c';
                             isPitting = false; pitTimer = 0;
-                            // Auto-brake hard inside box
-                            brakeVal = 200;
+                            // No auto-brake, user control only
                         } else if (kph > 1) {
                             msgEl.style.display = 'block';
                             msgEl.innerText = "STOP CAR";
