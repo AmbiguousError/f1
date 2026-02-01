@@ -1468,7 +1468,7 @@
         }
         
         function generatePitLane() {
-            const pitLen = 45;
+            const pitLen = 80; // Extended length
             const pitVertices = []; const pitIndices = [];
             const pitWidth = 10;
             const maxOffset = (cfg.roadWidth / 2) + 8;
@@ -1676,6 +1676,8 @@
 
         function createF1Car(startIdx, flyingStart) {
             const isMini = cfg.carClass === 'mini';
+            // Get player color from season driver info (Index 0 is always player in season.drivers)
+            const playerColor = season.drivers[0] ? season.drivers[0].color : 0xdc0000;
             const p1 = trackPoints[startIdx]; 
             const nextIdx = (startIdx + 5) % trackPoints.length; 
             const p2 = trackPoints[nextIdx];
@@ -1701,7 +1703,7 @@
                 chassisBody.velocity.set(vx, 0, vz);
             }
 
-            const mesh = isMini ? buildMiniMesh(0xdc0000) : buildCarMesh(0xdc0000);
+            const mesh = isMini ? buildMiniMesh(playerColor) : buildCarMesh(playerColor);
             scene.add(mesh); chassisBody.userData = { mesh: mesh };
             vehicle = new CANNON.RaycastVehicle({ chassisBody: chassisBody, indexRightAxis: 0, indexUpAxis: 1, indexForwardAxis: 2 });
             
@@ -2085,10 +2087,19 @@
                     if(distSq < trap.r * trap.r) { onSurface = 'sand'; break; }
                 }
                 if(onSurface !== 'sand' && minD > 144) onSurface = 'grass';
-                if (onSurface !== 'tarmac') {
+                // AI Reset Logic: Check flip or stuck
+                const up = new CANNON.Vec3(0, 1, 0);
+                const carUp = new CANNON.Vec3(0, 1, 0);
+                ai.body.quaternion.vmult(carUp, carUp);
+                if (carUp.dot(up) < 0.2) { // Upside down or steep angle
                     ai.offTrackTimer += 1/60;
-                    if (ai.offTrackTimer > 2.0) { teleportToTrack(ai.body); ai.offTrackTimer = 0; return; }
-                } else { ai.offTrackTimer = 0; }
+                } else if (onSurface !== 'tarmac') {
+                    ai.offTrackTimer += 1/60;
+                } else {
+                    ai.offTrackTimer = 0;
+                }
+
+                if (ai.offTrackTimer > 2.0) { teleportToTrack(ai.body); ai.offTrackTimer = 0; return; }
 
                 const distToNextCP = (pos.x - checkpoints[ai.nextCp].x)**2 + (pos.z - checkpoints[ai.nextCp].z)**2;
                 if(distToNextCP < 1600) { 
@@ -2524,6 +2535,27 @@
                 let downforce = speed * speed * 3.0; if(downforce > 20000) downforce = 20000;
                 chassisBody.applyLocalForce(new CANNON.Vec3(0, -downforce, 0), new CANNON.Vec3(0, 0, 0));
                 
+                // DRIFT CONTROL / STABILITY ASSIST
+                // Calculate slip angle: Angle between forward vector and velocity
+                const localVel = new CANNON.Vec3();
+                chassisBody.vectorToLocalFrame(chassisBody.velocity, localVel);
+                if (speed > 10) {
+                    const slipAngle = Math.atan2(localVel.x, localVel.z);
+                    // If sliding (slip > 0.3 rad) and Accelerating (Power Oversteer)
+                    if (Math.abs(slipAngle) > 0.3 && inputs.up) {
+                        // Apply stabilizing torque to help align
+                        const stabForce = -slipAngle * 8000;
+                        chassisBody.applyLocalTorque(new CANNON.Vec3(0, stabForce, 0));
+
+                        // Reduce rear side friction to allow drift but maintain forward drive
+                        if (vehicle.wheelInfos[2] && vehicle.wheelInfos[3]) {
+                            const driftGrip = vehicle.wheelInfos[2].frictionSlip * 0.8;
+                            vehicle.wheelInfos[2].frictionSlip = driftGrip;
+                            vehicle.wheelInfos[3].frictionSlip = driftGrip;
+                        }
+                    }
+                }
+
                 const up = new CANNON.Vec3(0,1,0); chassisBody.quaternion.vmult(up, up);
                 document.getElementById('speed-val').innerText = Math.round(kph);
                 updateAudio(speed);
