@@ -535,7 +535,6 @@
     </script>
 
     <script type="module">
-        console.log("Module script started");
         import * as THREE from 'three';
         import * as CANNON from 'cannon-es';
         console.log("Imports loaded");
@@ -759,7 +758,6 @@
             setupPhysics();
             generateCircuit();
             setupMinimap(); 
-            
             // --- SESSION SETUP ---
             if (sessionType === 'qualifying') {
                 totalLaps = 1;
@@ -794,7 +792,8 @@
                     // Loop around trackRes (800)
                     const distBack = (i + 1) * 20; 
                     let spawnPtIdx = (cfg.trackRes + 0 - distBack) % cfg.trackRes;
-                    
+                    if(spawnPtIdx < 0) spawnPtIdx += cfg.trackRes; // Handle negative
+
                     if (driverIdx === 0) {
                         // Player
                         createF1Car(spawnPtIdx, false);
@@ -2006,6 +2005,8 @@
             if(!isRunning || isPaused) return;
             animId = requestAnimationFrame(animate);
             
+            // console.log("animating"); // Verbose
+            // Allow physics loop in 'racing' AND 'finished' (for coasting)
             if(raceState === 'racing' || raceState === 'finished') {
                 world.step(1/60);
                 const speed = chassisBody.velocity.length(); const kph = speed * 3.6;
@@ -2045,6 +2046,9 @@
                     
                     let maxSteer = Math.max(0.2, 0.6 - (speed * 0.008)); 
                     if (cfg.weather === 'wet') maxSteer *= 0.8;
+
+                    // NON-LINEAR STEERING
+                    let inputVal = inputs.left ? 1 : (inputs.right ? -1 : 0);
 
                     // NON-LINEAR STEERING
                     let inputVal = inputs.left ? 1 : (inputs.right ? -1 : 0);
