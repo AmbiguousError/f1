@@ -1401,69 +1401,7 @@
         }
 
 
-        const miniBodyGeo = new THREE.BoxGeometry(1.4, 0.6, 2.4);
-        const miniRoofGeo = new THREE.BoxGeometry(1.3, 0.35, 1.4);
-        const miniCabinGeo = new THREE.BoxGeometry(1.35, 0.3, 1.8);
-        const miniLightGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.1, 16); miniLightGeo.rotateX(Math.PI/2);
-
-        function buildCarMesh(color) {
-            const group = new THREE.Group();
-            const mainMat = new THREE.MeshStandardMaterial({ color: color, metalness: 0.1, roughness: 0.2 });
-            const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
-            const body = new THREE.Mesh(bodyGeo, mainMat); body.position.set(0, 0.4, 0.2); group.add(body);
-            const nose = new THREE.Mesh(noseGeo, mainMat); nose.position.set(0, 0.3, 2.4); group.add(nose);
-            const fw = new THREE.Mesh(fwGeo, blackMat); fw.position.set(0, 0.15, 3.0); group.add(fw);
-            const podL = new THREE.Mesh(podGeo, mainMat); podL.position.set(0.8, 0.4, -0.2); group.add(podL);
-            const podR = new THREE.Mesh(podGeo, mainMat); podR.position.set(-0.8, 0.4, -0.2); group.add(podR);
-            const rw = new THREE.Mesh(rwGeo, blackMat); rw.position.set(0, 0.8, -2.0); group.add(rw);
-            const rwTop = new THREE.Mesh(rwTopGeo, mainMat); rwTop.position.set(0, 1.1, -2.0); group.add(rwTop);
-            const halo = new THREE.Mesh(haloGeo, blackMat); halo.rotation.x = -Math.PI/2; halo.position.set(0, 0.75, 0.5); group.add(halo);
-            const helm = new THREE.Mesh(helmGeo, new THREE.MeshStandardMaterial({color: 0xffff00})); helm.position.set(0, 0.7, 0.3); group.add(helm);
-            group.castShadow = true; group.traverse(c => c.castShadow = true);
-            return group;
-        }
-
-        function buildMiniMesh(color) {
-            const group = new THREE.Group();
-            const mainMat = new THREE.MeshStandardMaterial({ color: color, metalness: 0.3, roughness: 0.4 });
-            const roofMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.1, roughness: 0.4 });
-            const glassMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.9 });
-            const chromeMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.8, roughness: 0.2 });
-
-            const body = new THREE.Mesh(miniBodyGeo, mainMat); body.position.set(0, 0.3, 0); group.add(body);
-            const roof = new THREE.Mesh(miniRoofGeo, roofMat); roof.position.set(0, 0.75, -0.1); group.add(roof);
-            const cabin = new THREE.Mesh(miniCabinGeo, glassMat); cabin.position.set(0, 0.6, -0.1); group.add(cabin);
-            const lightL = new THREE.Mesh(miniLightGeo, chromeMat); lightL.position.set(0.5, 0.4, 1.2); group.add(lightL);
-            const lightR = new THREE.Mesh(miniLightGeo, chromeMat); lightR.position.set(-0.5, 0.4, 1.2); group.add(lightR);
-
-            group.castShadow = true; group.traverse(c => c.castShadow = true);
-            return group;
-        }
-
-        function createAICar(startIdx, offset, color, id, name) {
-            const isMini = cfg.carClass === 'mini';
-            const p1 = trackPoints[startIdx]; const nextIdx = (startIdx + 5) % trackPoints.length; const p2 = trackPoints[nextIdx];
-            const tangent = new THREE.Vector3().subVectors(p2, p1).normalize();
-            const up = new THREE.Vector3(0, 1, 0);
-            const side = new THREE.Vector3().crossVectors(tangent, up).normalize();
-            const startPos = p1.clone().add(side.multiplyScalar(offset));
-            const body = new CANNON.Body({ mass: 800 });
-            body.linearDamping = 0.05; body.angularDamping = 0.5;
-
-            const colSize = isMini ? new CANNON.Vec3(0.7, 0.4, 1.2) : new CANNON.Vec3(0.8, 0.3, 2.2);
-            const shape = new CANNON.Box(colSize);
-            body.addShape(shape, new CANNON.Vec3(0, 0.4, 0));
-
-            body.position.copy(startPos); body.position.y += 1;
-            const angle = Math.atan2(p2.x - p1.x, p2.z - p1.z);
-            body.quaternion.setFromEuler(0, angle, 0);
-
-            const mesh = isMini ? buildMiniMesh(color) : buildCarMesh(color);
-            scene.add(mesh); body.userData = { mesh: mesh };
-            const vehicle = new CANNON.RaycastVehicle({ chassisBody: body, indexRightAxis: 0, indexUpAxis: 1, indexForwardAxis: 2 });
-            
-            // DYNAMIC FRICTION FOR AI
-            const currentGrip = cfg.weather === 'wet' ? 2.0 : 5.0;
+            const wRadiusR = isMini ? 0.3 : 0.6;
             
             const wRadiusF = isMini ? 0.3 : 0.45;
             const wRadiusR = isMini ? 0.3 : 0.6;
@@ -1609,7 +1547,7 @@
                 // If 'nextCp' is 1 (targeting first sector) AND index is very small (< 1/4 track), assume lap is correct.
                 // If 'nextCp' is 1 (targeting first sector) AND index is very large (> 3/4 track), it means they haven't crossed the logic line yet but physically have?
                 // No, if nextCp is 1, it means we are looking for CP1. We passed CP0.
-                
+
                 // Wrap Fix:
                 // If we JUST crossed the line (idx < 200) but lap counter is still lagging (unlikely with current synchronous logic), we might have an issue.
                 // However, the previous logic:
@@ -1617,16 +1555,16 @@
                 // This implies: "If I am targeting CP1 (meaning I haven't triggered CP1 yet, so I might be at start) and my index is low... add a lap?"
                 // Actually, if nextCp is 1, I *should* have already incremented the lap.
                 // Unless: 'nextCp' resets to 1 instantly on crossing line.
-                
+
                 // Let's simplify: Trust 'lap' and 'idx'.
                 // If lap=2, idx=10 -> Dist = 800 + 10 = 810.
                 // If lap=1, idx=790 -> Dist = 0 + 790 = 790.
                 // Correct.
-
+                
                 // The only edge case is if 'lap' doesn't increment exactly at idx=0.
                 // If I am at idx=0 but lap is still 1 -> Dist = 0. That is wrong (should be 800).
                 // But trackPoints circle back. idx 799 -> idx 0.
-
+                
                 // If I am at idx 5 (past line) but 'lap' hasn't triggered (still 1), dist = 5.
                 // That is a massive drop from 799.
                 // So if (idx < 200 && nextCp === 0) -> We are approaching start line. Lap is 1. Dist = 5?? No, idx should be high.
@@ -2154,12 +2092,12 @@
                     // Clamp
                     if(currentSteer > 1) currentSteer = 1;
                     if(currentSteer < -1) currentSteer = -1;
-
+                    
                     // Apply Non-Linear Curve (x^2 or x^1.5)
                     // This gives precision near center (0) and speed at edges (1)
                     const curve = Math.abs(currentSteer) ** 1.5;
                     steering = Math.sign(currentSteer) * curve * maxSteer;
-                    
+
                     // ABS LOGIC
                     let maxBrakeForce = 150;
                     // If turning hard at speed, reduce max brake force to prioritize steering (ABS)
