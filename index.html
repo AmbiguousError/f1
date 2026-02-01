@@ -279,7 +279,7 @@
         </div>
 
         <!-- TYRE SELECT -->
-        <div class="menu-row">
+        <div class="menu-row" id="tyre-select-row">
             <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">TYRES</span>
             <button class="opt-btn selected" onclick="setStartTyre('SOFT', this)" style="color:#e74c3c">S</button>
             <button class="opt-btn" onclick="setStartTyre('MED', this)" style="color:#f1c40f">M</button>
@@ -327,6 +327,7 @@
             <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">WEATHER</span>
             <button class="opt-btn selected" onclick="setWeather('dry', this)">DRY</button>
             <button class="opt-btn" onclick="setWeather('wet', this)">WET</button>
+            <button class="opt-btn" onclick="setWeather('dynamic', this)">DYN</button>
         </div>
 
         <div class="menu-row">
@@ -533,6 +534,19 @@
         window.setWeather = function(mode, el) {
             selectedWeather = mode;
             updateSelection(el);
+
+            // Auto-Select WET tyres if Wet Weather chosen
+            if (mode === 'wet') {
+                selectedStartTyre = 'WET';
+                const row = document.getElementById('tyre-select-row');
+                if(row) {
+                    const btns = row.querySelectorAll('.opt-btn');
+                    btns.forEach(b => {
+                        b.classList.remove('selected');
+                        if(b.innerText === 'W') b.classList.add('selected');
+                    });
+                }
+            }
         };
 
         window.setQualifying = function(val, el) {
@@ -885,7 +899,10 @@
             tyreLife = 100.0;
 
             // Weather Init
-            worldWetness = cfg.weather === 'wet' ? 1.0 : 0.0;
+            if (cfg.weather === 'wet') worldWetness = 1.0;
+            else if (cfg.weather === 'dry') worldWetness = 0.0;
+            else worldWetness = 0.0; // Dynamic starts dry? Or Random? Let's say Dynamic starts Dry.
+
             targetWetness = worldWetness;
             weatherTimer = 0;
             nextWeatherEvent = 45 + (rng() * 45); // Use RNG for consistency
@@ -1694,7 +1711,7 @@
                 if(k === 'd' || k === 'arrowright') { inputs.right = v; setBtn('btn-r', v); }
                 // Cleaned Inputs: Space handles Brake AND Reset
                 if(k === ' ') { inputs.brake = v; setBtn('btn-b', v); }
-                if(k === 'escape' && v) togglePause();
+                // Escape handled separately via code
                 if(k === 't' && v) {
                     const currIdx = TYRE_KEYS.indexOf(nextTyre);
                     nextTyre = TYRE_KEYS[(currIdx + 1) % TYRE_KEYS.length];
@@ -1704,8 +1721,13 @@
                 const b = document.getElementById(id);
                 if(active) b.classList.add('active'); else b.classList.remove('active');
             }
-            window.addEventListener('keydown', e => handle(e.key.toLowerCase(), true, e));
-            window.addEventListener('keyup', e => handle(e.key.toLowerCase(), false, e));
+            window.addEventListener('keydown', e => {
+                if (e.code === 'Escape') togglePause();
+                else handle(e.key.toLowerCase(), true, e);
+            });
+            window.addEventListener('keyup', e => {
+                if (e.code !== 'Escape') handle(e.key.toLowerCase(), false, e);
+            });
             const bind = (id, k) => {
                 const el = document.getElementById(id);
                 el.addEventListener('touchstart', (e) => { e.preventDefault(); handle(k, true); });
@@ -1738,17 +1760,64 @@
             // Helper to get total race distance traveled
             const getTotalDist = (pos, lap, nextCp) => {
                 let minD = Infinity, idx = 0;
+                // Find closest track point index
                 for(let i=0; i<trackPoints.length; i+=10) {
                     const d = (pos.x - trackPoints[i].x)**2 + (pos.z - trackPoints[i].z)**2;
                     if(d < minD) { minD = d; idx = i; }
                 }
                 
+                // Calculate total distance
+                // Base distance is (Laps Completed * Track Length) + Current Index
+                // Lap counter starts at 1.
+                // Distance = (lap - 1) * 800 + idx
+
                 let dist = ((lap - 1) * trackPoints.length) + idx;
                 
-                // Fix distance wrap for cars past start line but not yet at CP1
-                // If targeting CP1 (nextCp === 1) and index is low (past 0), add track length
-                if (nextCp === 1 && idx < trackPoints.length * 0.25) { 
-                    dist += trackPoints.length; 
+                // Edge Case: Crossing the Line
+                // If a car has crossed the physical line (idx is small, e.g., 10) but the lap counter hasn't updated yet
+                // (because lap updates at CP0/StartLine logic which might have a small delay or threshold),
+                // their 'dist' would drop massively (e.g. 1600 -> 810).
+
+                // Conversely, if lap HAS updated (now Lap 2) but index is still 0/10, dist = 1610.
+
+                // The issue is synchronizing 'lap' variable with 'idx' position.
+                // AI updates lap when distance to CP0 < threshold.
+                // Player updates lap when distance to CP0 < threshold.
+
+                // To make this robust:
+                // If 'nextCp' is 1 (targeting first sector) AND index is very small (< 1/4 track), assume lap is correct.
+                // If 'nextCp' is 1 (targeting first sector) AND index is very large (> 3/4 track), it means they haven't crossed the logic line yet but physically have?
+                // No, if nextCp is 1, it means we are looking for CP1. We passed CP0.
+
+                // Wrap Fix:
+                // If we JUST crossed the line (idx < 200) but lap counter is still lagging (unlikely with current synchronous logic), we might have an issue.
+                // However, the previous logic:
+                // "if (nextCp === 1 && idx < trackPoints.length * 0.25) dist += trackPoints.length;"
+                // This implies: "If I am targeting CP1 (meaning I haven't triggered CP1 yet, so I might be at start) and my index is low... add a lap?"
+                // Actually, if nextCp is 1, I *should* have already incremented the lap.
+                // Unless: 'nextCp' resets to 1 instantly on crossing line.
+
+                // Let's simplify: Trust 'lap' and 'idx'.
+                // If lap=2, idx=10 -> Dist = 800 + 10 = 810.
+                // If lap=1, idx=790 -> Dist = 0 + 790 = 790.
+                // Correct.
+
+                // The only edge case is if 'lap' doesn't increment exactly at idx=0.
+                // If I am at idx=0 but lap is still 1 -> Dist = 0. That is wrong (should be 800).
+                // But trackPoints circle back. idx 799 -> idx 0.
+
+                // If I am at idx 5 (past line) but 'lap' hasn't triggered (still 1), dist = 5.
+                // That is a massive drop from 799.
+                // So if (idx < 200 && nextCp === 0) -> We are approaching start line. Lap is 1. Dist = 5?? No, idx should be high.
+                // Wait, index 0 is start line.
+
+                // If targeting CP0 (Finish Line, nextCp=0):
+                // We expect index to be high (e.g. 700).
+                // If index is low (e.g. 10), we physically crossed but logic hasn't fired.
+                // Then we should treat it as (Lap-1)*Length + (Length + idx)
+
+                if (nextCp === 0 && idx < trackPoints.length * 0.25) {
+                    dist += trackPoints.length;
                 }
                 
                 return dist;
@@ -2125,7 +2194,7 @@
             // Allow physics loop in 'racing' AND 'finished' (for coasting)
             if(raceState === 'racing' || raceState === 'finished') {
                 // --- WEATHER LOGIC ---
-                if (raceState === 'racing') {
+                if (raceState === 'racing' && cfg.weather === 'dynamic') {
                     weatherTimer += 1/60;
                     if(weatherTimer > nextWeatherEvent) {
                         targetWetness = 1.0 - targetWetness; // Toggle
@@ -2137,6 +2206,10 @@
                         msg.style.borderColor = '#3498db';
                         setTimeout(() => { if(!isPitting) msg.style.display = 'none'; }, 4000);
                     }
+                } else if (cfg.weather === 'dry') {
+                    targetWetness = 0.0;
+                } else if (cfg.weather === 'wet') {
+                    targetWetness = 1.0;
                 }
 
                 const diff = targetWetness - worldWetness;
@@ -2320,7 +2393,9 @@
 
                             if (pitTimer < 3.0) {
                                 const pct = Math.floor((pitTimer/3.0)*100);
-                                msgEl.innerText = `CHANGING TYRES... ${pct}%`;
+                                // Show Next Tyre Choice
+                                const nC = TYRE_COMPOUNDS[nextTyre];
+                                msgEl.innerHTML = `CHANGING TO <span style="color:${nC.color}">${nextTyre}</span>... ${pct}%<br><span style="font-size:20px; color:#aaa">(PRESS T TO CHANGE)</span>`;
                             } else {
                                 tyreLife = 100;
                                 currentTyre = nextTyre;
