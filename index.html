@@ -704,6 +704,7 @@
 
         // Physics Helpers
         let currentSteer = 0;
+        let currentBrake = 0;
         let resetTimer = 0;
         let inSand = false;
         
@@ -2268,11 +2269,17 @@
                     if (cfg.carClass === 'mini') enginePower = -3500;
 
                     if(inputs.up) force = enginePower;
-                    if(inputs.brake) { 
-                        brakeVal = 150; 
+
+                    // PROGRESSIVE BRAKING (Like Steering)
+                    if(inputs.brake) {
+                        currentBrake += 0.2; // Ramp up
                         force = 0;
+                    } else {
+                        currentBrake *= 0.5; // Decay
                     }
-                    
+                    if(currentBrake > 1) currentBrake = 1;
+                    if(currentBrake < 0.01) currentBrake = 0;
+
                     let maxSteer = Math.max(0.2, 0.6 - (speed * 0.008)); 
 
                     // WET STEERING
@@ -2280,7 +2287,7 @@
 
                     // NON-LINEAR STEERING
                     let inputVal = inputs.left ? 1 : (inputs.right ? -1 : 0);
-
+                    
                     if (inputVal !== 0) {
                         // Ramp up steering over time when key held
                         // Store a "steer time" or just use linear interpolation with a curve
@@ -2302,7 +2309,20 @@
                     // This gives precision near center (0) and speed at edges (1)
                     const curve = Math.abs(currentSteer) ** 1.5;
                     steering = Math.sign(currentSteer) * curve * maxSteer;
-                    
+
+                    // ABS LOGIC
+                    let maxBrakeForce = 150;
+                    // If turning hard at speed, reduce max brake force to prioritize steering (ABS)
+                    if (speed > 20 && Math.abs(steering) > 0.1) {
+                        maxBrakeForce = 100;
+                    }
+                    // Apply ABS Pulse if braking hard
+                    if (currentBrake > 0.8 && speed > 20) {
+                        // Mild fluctuation (0.8 - 1.0)
+                        maxBrakeForce *= (0.8 + Math.random() * 0.2);
+                    }
+                    brakeVal = currentBrake * maxBrakeForce;
+
                     // AUTO RESET LOGIC (Only in Racing mode)
                     if(kph < 10 && inputs.brake) {
                         resetTimer += 0.02; if(resetTimer > 1.5) resetCar();
