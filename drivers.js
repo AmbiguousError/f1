@@ -1,0 +1,22 @@
+export const DRIVERS_2025 = [
+    { name: "L. Hamilton", team: "Ferrari", color: 0xdc0000, speed: 0.98, cornering: 0.99 },
+    { name: "C. Leclerc", team: "Ferrari", color: 0xdc0000, speed: 0.99, cornering: 0.98 },
+    { name: "M. Verstappen", team: "Red Bull", color: 0x101070, speed: 1.0, cornering: 1.0 },
+    { name: "L. Lawson", team: "Red Bull", color: 0x101070, speed: 0.94, cornering: 0.95 },
+    { name: "L. Norris", team: "McLaren", color: 0xff8700, speed: 0.99, cornering: 0.97 },
+    { name: "O. Piastri", team: "McLaren", color: 0xff8700, speed: 0.98, cornering: 0.98 },
+    { name: "G. Russell", team: "Mercedes", color: 0xc0c0c0, speed: 0.97, cornering: 0.97 },
+    { name: "K. Antonelli", team: "Mercedes", color: 0xc0c0c0, speed: 0.93, cornering: 0.92 },
+    { name: "F. Alonso", team: "Aston Martin", color: 0x005500, speed: 0.95, cornering: 0.99 },
+    { name: "L. Stroll", team: "Aston Martin", color: 0x005500, speed: 0.90, cornering: 0.90 },
+    { name: "P. Gasly", team: "Alpine", color: 0x0090ff, speed: 0.92, cornering: 0.93 },
+    { name: "J. Doohan", team: "Alpine", color: 0x0090ff, speed: 0.88, cornering: 0.89 },
+    { name: "A. Albon", team: "Williams", color: 0x005aff, speed: 0.93, cornering: 0.94 },
+    { name: "C. Sainz", team: "Williams", color: 0x005aff, speed: 0.96, cornering: 0.97 },
+    { name: "N. Hulkenberg", team: "Sauber", color: 0x00e600, speed: 0.91, cornering: 0.92 },
+    { name: "G. Bortoleto", team: "Sauber", color: 0x00e600, speed: 0.87, cornering: 0.88 },
+    { name: "Y. Tsunoda", team: "RB", color: 0x1133cc, speed: 0.92, cornering: 0.92 },
+    { name: "I. Hadjar", team: "RB", color: 0x1133cc, speed: 0.88, cornering: 0.89 },
+    { name: "E. Ocon", team: "Haas", color: 0xffffff, speed: 0.92, cornering: 0.93 },
+    { name: "O. Bearman", team: "Haas", color: 0xffffff, speed: 0.90, cornering: 0.91 }
+];
