@@ -2316,7 +2316,7 @@
                         const d = (p.x - trackPoints[i].x)**2 + (p.z - trackPoints[i].z)**2;
                         if(d < minD) { minD = d; cIdx = i; }
                     }
-                    
+
                     // 2. Steer towards LookAhead
                     const lookAhead = 10;
                     const targetIdx = (cIdx + lookAhead) % trackPoints.length;
@@ -2324,14 +2324,14 @@
                     const local = new CANNON.Vec3();
                     chassisBody.pointToLocalFrame(target, local);
                     const targetSteer = Math.atan2(local.x, local.z);
-                    
+
                     // 3. Control Speed (Coast at ~100kph)
                     if(kph < 80) force = -3000;
                     else if(kph > 100) brakeVal = 50;
-                    
+
                     // Apply Steering Smoothing
                     steering = currentSteer + (targetSteer - currentSteer) * 0.1;
-                    
+
                     // Force reset timer to 0 so HUD doesn't show
                     resetTimer = 0; 
                 } else {
@@ -2358,7 +2358,7 @@
                     if(currentBrake < 0.01) currentBrake = 0;
 
                     let maxSteer = Math.max(0.2, 0.6 - (speed * 0.008)); 
-                    
+
                     // WET STEERING
                     if (cfg.weather === 'wet') maxSteer *= 0.8; // harder to turn sharp
 
@@ -2439,7 +2439,7 @@
                     wearRate *= comp.wear;
                     tyreLife -= wearRate;
                     if (tyreLife < 0) tyreLife = 0;
-                    
+
                     // Update HUD
                     const tyreEl = document.getElementById('tyre-val');
                     let lifeColor = "#2ecc71";
@@ -2493,10 +2493,10 @@
                                 pitTimer = 0;
                             }
                             pitTimer += 1/60; // assume 60fps delta
-                            
+
                             msgEl.style.display = 'block';
                             msgEl.style.borderColor = '#3498db';
-                            
+
                             if (pitTimer < 3.0) {
                                 const pct = Math.floor((pitTimer/3.0)*100);
                                 // Show Next Tyre Choice
@@ -2528,7 +2528,7 @@
                 }
 
                 vehicle.applyEngineForce(force, 2); vehicle.applyEngineForce(force, 3);
-                
+
                 // Apply Brakes
                 vehicle.setBrake(brakeVal, 0); vehicle.setBrake(brakeVal, 1); vehicle.setBrake(brakeVal, 2); vehicle.setBrake(brakeVal, 3);
                 
@@ -2580,7 +2580,7 @@
 
                 let gearText = gear; 
                 if(raceState === 'countdown') gearText = 'N';
-                
+
                 document.getElementById('gear-val').innerText = gearText;
                 document.getElementById('time-val').innerText = formatTime(Date.now() - startTime);
                 document.getElementById('total-time-val').innerText = formatTime(Date.now() - raceStartTime);
