@@ -1681,10 +1681,28 @@
                     const diff = r.time - qualiResults[0].time;
                     const timeStr = i===0 ? formatTime(r.time) : `+${(diff/1000).toFixed(3)}`;
                     
-                    // Highlight player
-                    const nameStr = r.name === "Player" ? `<span style="color:#e74c3c">Player</span>` : r.name;
+                    // Highlight player safely
+                    const posSpan = document.createElement('span');
+                    posSpan.className = `pos-${i+1}`;
+                    posSpan.textContent = `${i+1}. `;
                     
-                    row.innerHTML = `<span class="pos-${i+1}">${i+1}. ${nameStr}</span> <span class="time-gap">${timeStr}</span>`;
+                    if (r.name === "Player") {
+                        const nameSpan = document.createElement('span');
+                        nameSpan.style.color = '#e74c3c';
+                        nameSpan.textContent = "Player";
+                        posSpan.appendChild(nameSpan);
+                    } else {
+                        posSpan.appendChild(document.createTextNode(r.name));
+                    }
+
+                    const timeSpan = document.createElement('span');
+                    timeSpan.className = 'time-gap';
+                    timeSpan.textContent = timeStr;
+
+                    row.innerHTML = ''; // Clear just in case
+                    row.appendChild(posSpan);
+                    row.appendChild(document.createTextNode(' '));
+                    row.appendChild(timeSpan);
                     list.appendChild(row);
                 });
                 
@@ -1721,12 +1739,28 @@
                     timeStr = "--"; // Not finished
                 }
 
-                row.innerHTML = `
-                    <span class="pos-${i+1}">${i+1}. ${r.name}</span> 
-                    <div style="display:flex; gap:10px;">
-                        <span class="time-gap">${timeStr}</span>
-                        <span>+${r.pts} PTS</span>
-                    </div>`;
+                const posSpan = document.createElement('span');
+                posSpan.className = `pos-${i+1}`;
+                posSpan.textContent = `${i+1}. ${r.name}`;
+
+                const rightCol = document.createElement('div');
+                rightCol.style.display = 'flex';
+                rightCol.style.gap = '10px';
+
+                const timeSpan = document.createElement('span');
+                timeSpan.className = 'time-gap';
+                timeSpan.textContent = timeStr;
+
+                const ptsSpan = document.createElement('span');
+                ptsSpan.textContent = `+${r.pts} PTS`;
+
+                rightCol.appendChild(timeSpan);
+                rightCol.appendChild(ptsSpan);
+
+                row.innerHTML = '';
+                row.appendChild(posSpan);
+                row.appendChild(document.createTextNode(' '));
+                row.appendChild(rightCol);
                 list.appendChild(row);
             });
 
@@ -1740,7 +1774,18 @@
                 standings.forEach((d, i) => {
                     const row = document.createElement('div');
                     row.className = 'result-row';
-                    row.innerHTML = `<span class="pos-${i+1}">${i+1}. ${d.name}</span> <span>${d.points} PTS</span>`;
+
+                    const posSpan = document.createElement('span');
+                    posSpan.className = `pos-${i+1}`;
+                    posSpan.textContent = `${i+1}. ${d.name}`;
+
+                    const ptsSpan = document.createElement('span');
+                    ptsSpan.textContent = `${d.points} PTS`;
+
+                    row.appendChild(posSpan);
+                    row.appendChild(document.createTextNode(' '));
+                    row.appendChild(ptsSpan);
+
                     seasonList.appendChild(row);
                 });
 
