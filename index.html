@@ -1804,10 +1804,10 @@
                 }
                 if(onSurface !== 'sand' && minD > 144) onSurface = 'grass';
                 // AI Reset Logic: Check flip or stuck
-                const up = new CANNON.Vec3(0, 1, 0);
-                const carUp = new CANNON.Vec3(0, 1, 0);
-                ai.body.quaternion.vmult(carUp, carUp);
-                if (carUp.dot(up) < 0.2) { // Upside down or steep angle
+                _aiTarget.set(0, 1, 0);
+                _aiLocalPoint.set(0, 1, 0);
+                ai.body.quaternion.vmult(_aiLocalPoint, _aiLocalPoint);
+                if (_aiLocalPoint.dot(_aiTarget) < 0.2) { // Upside down or steep angle
                     ai.offTrackTimer += 1/60;
                 } else if (onSurface !== 'tarmac') {
                     ai.offTrackTimer += 1/60;
@@ -1849,9 +1849,10 @@
 
                 const lookAheadIdx = (cIdx + lookAheadVal) % trackPoints.length;
                 const targetThree = trackPoints[lookAheadIdx];
-                const target = new CANNON.Vec3(targetThree.x, targetThree.y, targetThree.z);
-                const localPoint = new CANNON.Vec3(); ai.body.pointToLocalFrame(target, localPoint);
-                const steer = Math.atan2(localPoint.x, localPoint.z);
+
+                _aiTarget.set(targetThree.x, targetThree.y, targetThree.z);
+                ai.body.pointToLocalFrame(_aiTarget, _aiLocalPoint);
+                const steer = Math.atan2(_aiLocalPoint.x, _aiLocalPoint.z);
                 const speed = ai.body.velocity.length();
                 
                 // AI COOLDOWN SPEED
@@ -1895,7 +1896,8 @@
                     ai.vehicle.updateWheelTransform(i); const t = ai.vehicle.wheelInfos[i].worldTransform;
                     ai.wheels[i].position.copy(t.position); ai.wheels[i].quaternion.copy(t.quaternion);
                 }
-                ai.body.applyLocalForce(new CANNON.Vec3(0, -speed*speed*2, 0), new CANNON.Vec3(0,0,0));
+                _aiForceVec.set(0, -speed * speed * 2, 0);
+                ai.body.applyLocalForce(_aiForceVec, _zeroVec);
             });
             
             if(raceState === 'racing') {
@@ -1953,6 +1955,12 @@
             const m = new THREE.Mesh(skidGeo, skidMat); m.position.copy(pos); m.position.y = 0.05; m.rotation.x = -Math.PI/2; m.rotation.z = Math.random()*Math.PI;
             scene.add(m); skidmarks.push(m); if(skidmarks.length > 200) { const old = skidmarks.shift(); scene.remove(old); }
         }
+
+        // ⚡ Shared constants for AI and AutoPilot calculations to avoid frequent GC allocations
+        const _aiTarget = new CANNON.Vec3();
+        const _aiLocalPoint = new CANNON.Vec3();
+        const _zeroVec = new CANNON.Vec3(0, 0, 0);
+        const _aiForceVec = new CANNON.Vec3();
 
         function animate() {
             if(!isRunning || isPaused) return;
@@ -2031,10 +2039,10 @@
                     // 2. Steer towards LookAhead
                     const lookAhead = 10;
                     const targetIdx = (cIdx + lookAhead) % trackPoints.length;
-                    const target = new CANNON.Vec3(trackPoints[targetIdx].x, trackPoints[targetIdx].y, trackPoints[targetIdx].z);
-                    const local = new CANNON.Vec3();
-                    chassisBody.pointToLocalFrame(target, local);
-                    const targetSteer = Math.atan2(local.x, local.z);
+
+                    _aiTarget.set(trackPoints[targetIdx].x, trackPoints[targetIdx].y, trackPoints[targetIdx].z);
+                    chassisBody.pointToLocalFrame(_aiTarget, _aiLocalPoint);
+                    const targetSteer = Math.atan2(_aiLocalPoint.x, _aiLocalPoint.z);
 
                     // 3. Control Speed (Coast at ~100kph)
                     if(kph < 80) force = -3000;
@@ -2249,19 +2257,20 @@
                 }
 
                 let downforce = speed * speed * 3.0; if(downforce > 20000) downforce = 20000;
-                chassisBody.applyLocalForce(new CANNON.Vec3(0, -downforce, 0), new CANNON.Vec3(0, 0, 0));
+                _aiForceVec.set(0, -downforce, 0);
+                chassisBody.applyLocalForce(_aiForceVec, _zeroVec);
                 
                 // DRIFT CONTROL / STABILITY ASSIST
                 // Calculate slip angle: Angle between forward vector and velocity
-                const localVel = new CANNON.Vec3();
-                chassisBody.vectorToLocalFrame(chassisBody.velocity, localVel);
+                chassisBody.vectorToLocalFrame(chassisBody.velocity, _aiLocalPoint);
                 if (speed > 10) {
-                    const slipAngle = Math.atan2(localVel.x, localVel.z);
+                    const slipAngle = Math.atan2(_aiLocalPoint.x, _aiLocalPoint.z);
                     // If sliding (slip > 0.3 rad) and Accelerating (Power Oversteer)
                     if (Math.abs(slipAngle) > 0.3 && inputs.up) {
                         // Apply stabilizing torque to help align
                         const stabForce = -slipAngle * 8000;
-                        chassisBody.applyLocalTorque(new CANNON.Vec3(0, stabForce, 0));
+                        _aiForceVec.set(0, stabForce, 0);
+                        chassisBody.applyLocalTorque(_aiForceVec);
 
                         // Reduce rear side friction to allow drift but maintain forward drive
                         if (vehicle.wheelInfos[2] && vehicle.wheelInfos[3]) {
@@ -2272,7 +2281,7 @@
                     }
                 }
 
-                const up = new CANNON.Vec3(0,1,0); chassisBody.quaternion.vmult(up, up);
+                _aiTarget.set(0, 1, 0); chassisBody.quaternion.vmult(_aiTarget, _aiTarget);
                 document.getElementById('speed-val').innerText = Math.round(kph);
                 updateAudio(speed);
                 
