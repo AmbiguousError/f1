@@ -705,6 +705,16 @@
         let currentTyre = "SOFT";
         let nextTyre = "MED";
 
+        // Optimization: Global reusable vectors to prevent GC overhead in tight loops
+        const globalLocalVel = new CANNON.Vec3();
+        const globalDownforce = new CANNON.Vec3();
+        const globalZero = new CANNON.Vec3(0, 0, 0);
+        const globalTorque = new CANNON.Vec3();
+        const globalUp = new CANNON.Vec3(0, 1, 0);
+        const globalCarUp = new CANNON.Vec3(0, 1, 0);
+        const globalTarget = new CANNON.Vec3();
+        const globalLocalPoint = new CANNON.Vec3();
+
         // Weather Vars
         let worldWetness = 0.0; // 0 = Dry, 1 = Wet
         let targetWetness = 0.0;
@@ -2031,10 +2041,9 @@
                     // 2. Steer towards LookAhead
                     const lookAhead = 10;
                     const targetIdx = (cIdx + lookAhead) % trackPoints.length;
-                    const target = new CANNON.Vec3(trackPoints[targetIdx].x, trackPoints[targetIdx].y, trackPoints[targetIdx].z);
-                    const local = new CANNON.Vec3();
-                    chassisBody.pointToLocalFrame(target, local);
-                    const targetSteer = Math.atan2(local.x, local.z);
+                    globalTarget.set(trackPoints[targetIdx].x, trackPoints[targetIdx].y, trackPoints[targetIdx].z);
+                    chassisBody.pointToLocalFrame(globalTarget, globalLocalPoint);
+                    const targetSteer = Math.atan2(globalLocalPoint.x, globalLocalPoint.z);
 
                     // 3. Control Speed (Coast at ~100kph)
                     if(kph < 80) force = -3000;
@@ -2249,19 +2258,20 @@
                 }
 
                 let downforce = speed * speed * 3.0; if(downforce > 20000) downforce = 20000;
-                chassisBody.applyLocalForce(new CANNON.Vec3(0, -downforce, 0), new CANNON.Vec3(0, 0, 0));
+                globalDownforce.set(0, -downforce, 0);
+                chassisBody.applyLocalForce(globalDownforce, globalZero);
                 
                 // DRIFT CONTROL / STABILITY ASSIST
                 // Calculate slip angle: Angle between forward vector and velocity
-                const localVel = new CANNON.Vec3();
-                chassisBody.vectorToLocalFrame(chassisBody.velocity, localVel);
+                chassisBody.vectorToLocalFrame(chassisBody.velocity, globalLocalVel);
                 if (speed > 10) {
-                    const slipAngle = Math.atan2(localVel.x, localVel.z);
+                    const slipAngle = Math.atan2(globalLocalVel.x, globalLocalVel.z);
                     // If sliding (slip > 0.3 rad) and Accelerating (Power Oversteer)
                     if (Math.abs(slipAngle) > 0.3 && inputs.up) {
                         // Apply stabilizing torque to help align
                         const stabForce = -slipAngle * 8000;
-                        chassisBody.applyLocalTorque(new CANNON.Vec3(0, stabForce, 0));
+                        globalTorque.set(0, stabForce, 0);
+                        chassisBody.applyLocalTorque(globalTorque);
 
                         // Reduce rear side friction to allow drift but maintain forward drive
                         if (vehicle.wheelInfos[2] && vehicle.wheelInfos[3]) {
@@ -2272,7 +2282,8 @@
                     }
                 }
 
-                const up = new CANNON.Vec3(0,1,0); chassisBody.quaternion.vmult(up, up);
+                globalUp.set(0, 1, 0);
+                chassisBody.quaternion.vmult(globalUp, globalCarUp);
                 document.getElementById('speed-val').innerText = Math.round(kph);
                 updateAudio(speed);
                 
