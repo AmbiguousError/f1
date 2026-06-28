@@ -2207,11 +2207,38 @@
                                 const pct = Math.floor((pitTimer/3.0)*100);
                                 // Show Next Tyre Choice
                                 const nC = TYRE_COMPOUNDS[nextTyre];
-                                msgEl.innerHTML = `
-                                    <div style="font-size:24px; margin-bottom:10px;">CHANGING TO <span style="color:${nC.color}; font-weight:bold;">${nextTyre}</span></div>
-                                    <div style="font-size:40px; font-weight:bold;">${pct}%</div>
-                                    <div style="font-size:16px; color:#aaa; margin-top:10px;">PRESS <span style="color:#fff; border:1px solid #fff; padding:0 5px;">T</span> TO CYCLE TYRE</div>
-                                `;
+                                msgEl.textContent = '';
+
+                                const changingDiv = document.createElement('div');
+                                changingDiv.style.fontSize = '24px';
+                                changingDiv.style.marginBottom = '10px';
+                                changingDiv.textContent = 'CHANGING TO ';
+                                const nextTyreSpan = document.createElement('span');
+                                nextTyreSpan.style.color = nC.color;
+                                nextTyreSpan.style.fontWeight = 'bold';
+                                nextTyreSpan.textContent = nextTyre;
+                                changingDiv.appendChild(nextTyreSpan);
+                                msgEl.appendChild(changingDiv);
+
+                                const pctDiv = document.createElement('div');
+                                pctDiv.style.fontSize = '40px';
+                                pctDiv.style.fontWeight = 'bold';
+                                pctDiv.textContent = pct + '%';
+                                msgEl.appendChild(pctDiv);
+
+                                const cycleDiv = document.createElement('div');
+                                cycleDiv.style.fontSize = '16px';
+                                cycleDiv.style.color = '#aaa';
+                                cycleDiv.style.marginTop = '10px';
+                                cycleDiv.textContent = 'PRESS ';
+                                const tSpan = document.createElement('span');
+                                tSpan.style.color = '#fff';
+                                tSpan.style.border = '1px solid #fff';
+                                tSpan.style.padding = '0 5px';
+                                tSpan.textContent = 'T';
+                                cycleDiv.appendChild(tSpan);
+                                cycleDiv.appendChild(document.createTextNode(' TO CYCLE TYRE'));
+                                msgEl.appendChild(cycleDiv);
                             } else {
                                 tyreLife = 100;
                                 currentTyre = nextTyre;
