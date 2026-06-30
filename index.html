@@ -524,11 +524,15 @@
 
         window.setMode = function(mode, el) {
             gameMode = mode;
-            document.getElementById('mode-single').classList.toggle('selected', mode === 'single');
-            document.getElementById('mode-season').classList.toggle('selected', mode === 'season');
             document.getElementById('row-seed').style.display = mode === 'single' ? 'flex' : 'none';
             document.getElementById('row-races').style.display = mode === 'season' ? 'flex' : 'none';
-            if(el) updateSelection(el);
+            if (el) {
+                updateSelection(el);
+            } else {
+                // Fallback for programmatic changes without element reference
+                document.getElementById('mode-single').classList.toggle('selected', mode === 'single');
+                document.getElementById('mode-season').classList.toggle('selected', mode === 'season');
+            }
         };
 
         window.setClass = function(mode, el) {
@@ -564,12 +568,9 @@
             if (mode === 'wet') {
                 selectedStartTyre = 'WET';
                 const row = document.getElementById('tyre-select-row');
-                if(row) {
-                    const btns = row.querySelectorAll('.opt-btn');
-                    btns.forEach(b => {
-                        b.classList.remove('selected');
-                        if(b.innerText === 'W') b.classList.add('selected');
-                    });
+                if (row) {
+                    const wetBtn = Array.from(row.querySelectorAll('.opt-btn')).find(b => b.innerText === 'W');
+                    updateSelection(wetBtn);
                 }
             }
         };
@@ -603,8 +604,8 @@
 
         function updateSelection(el) {
             if (!el) return;
-            const btns = el.parentNode.querySelectorAll('.opt-btn');
-            btns.forEach(b => b.classList.remove('selected'));
+            const selectedBtns = el.parentNode.querySelectorAll('.opt-btn.selected');
+            selectedBtns.forEach(b => b.classList.remove('selected'));
             el.classList.add('selected');
         }
 
