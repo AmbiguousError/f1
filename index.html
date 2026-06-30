@@ -927,8 +927,7 @@
             }
         }
 
-        function init() {
-            rng = createRNG(cfg.seed);
+        function initGameState() {
             currentLap = 1; 
             startTime = 0; 
             raceStartTime = 0;
@@ -936,8 +935,11 @@
             skidmarks = []; trackPoints = []; checkpoints = []; visualWheels = []; sandTraps = []; aiCars = [];
             particles = [];
             tyreLife = 100.0;
+            pitBoxPosition = null; isPitting = false; pitTimer = 0;
+            isRunning = true; isPaused = false;
+        }
 
-            // Weather Init
+        function initWeather() {
             if (cfg.weather === 'wet') worldWetness = 1.0;
             else if (cfg.weather === 'dry') worldWetness = 0.0;
             else worldWetness = 0.0; // Dynamic starts dry? Or Random? Let's say Dynamic starts Dry.
@@ -953,22 +955,9 @@
             else if (currentTyre === "HARD") nextTyre = "SOFT";
             else if (currentTyre === "WET") nextTyre = "INTER";
             else nextTyre = "WET";
+        }
 
-            pitBoxPosition = null; isPitting = false; pitTimer = 0;
-
-            setupGraphics();
-            setupMinimap();
-            setupPhysics();
-            
-            const trackData = generateCircuit(scene, world, cfg, rng);
-            trackPoints = trackData.trackPoints;
-            trackCurve = trackData.trackCurve;
-            checkpoints = trackData.checkpoints;
-            sandTraps = trackData.sandTraps;
-            pitBoxPosition = trackData.pitBoxPosition;
-
-            setupMinimap();
-            // --- SESSION SETUP ---
+        function initSession() {
             if (sessionType === 'qualifying') {
                 totalLaps = 1;
                 // Flying Start: Spawn player before start line with speed
@@ -998,8 +987,8 @@
                     
                     // Start Index logic:
                     // 0 is start line. Grid spots are BEHIND.
-            // Tighter Grid: Reduced spacing (20 -> 12)
-            const distBack = (i + 1) * 12;
+                    // Tighter Grid: Reduced spacing (20 -> 12)
+                    const distBack = (i + 1) * 12;
                     let spawnPtIdx = (cfg.trackRes + 0 - distBack) % cfg.trackRes;
                     if(spawnPtIdx < 0) spawnPtIdx += cfg.trackRes; // Handle negative
 
@@ -1015,12 +1004,9 @@
                     }
                 }
             }
-            
-            setupAudio();
-            setupInputs();
-            
-            isRunning = true; isPaused = false;
+        }
 
+        function initUI() {
             document.getElementById('start-screen').style.display = 'none';
             document.getElementById('hud').style.display = 'flex'; 
             document.getElementById('mute-btn').style.display = 'flex';
@@ -1052,6 +1038,32 @@
                 }
                 startCountdown(false);
             }
+        }
+
+        function init() {
+            rng = createRNG(cfg.seed);
+
+            initGameState();
+            initWeather();
+
+            setupGraphics();
+            setupPhysics();
+
+            const trackData = generateCircuit(scene, world, cfg, rng);
+            trackPoints = trackData.trackPoints;
+            trackCurve = trackData.trackCurve;
+            checkpoints = trackData.checkpoints;
+            sandTraps = trackData.sandTraps;
+            pitBoxPosition = trackData.pitBoxPosition;
+
+            setupMinimap();
+
+            initSession();
+
+            setupAudio();
+            setupInputs();
+
+            initUI();
 
             if(audioCtx && audioMuted) audioCtx.suspend();
         }
