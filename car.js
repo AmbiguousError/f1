@@ -15,19 +15,29 @@ const miniRoofGeo = new THREE.BoxGeometry(1.3, 0.35, 1.4);
 const miniCabinGeo = new THREE.BoxGeometry(1.35, 0.3, 1.8);
 const miniLightGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.1, 16); miniLightGeo.rotateX(Math.PI/2);
 
+function createMeshAndAdd(group, geo, mat, x, y, z, rotX = 0) {
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, z);
+    if (rotX !== 0) mesh.rotation.x = rotX;
+    group.add(mesh);
+    return mesh;
+}
+
 export function buildCarMesh(color) {
     const group = new THREE.Group();
     const mainMat = new THREE.MeshStandardMaterial({ color: color, metalness: 0.1, roughness: 0.2 });
     const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
-    const body = new THREE.Mesh(bodyGeo, mainMat); body.position.set(0, 0.4, 0.2); group.add(body);
-    const nose = new THREE.Mesh(noseGeo, mainMat); nose.position.set(0, 0.3, 2.4); group.add(nose);
-    const fw = new THREE.Mesh(fwGeo, blackMat); fw.position.set(0, 0.15, 3.0); group.add(fw);
-    const podL = new THREE.Mesh(podGeo, mainMat); podL.position.set(0.8, 0.4, -0.2); group.add(podL);
-    const podR = new THREE.Mesh(podGeo, mainMat); podR.position.set(-0.8, 0.4, -0.2); group.add(podR);
-    const rw = new THREE.Mesh(rwGeo, blackMat); rw.position.set(0, 0.8, -2.0); group.add(rw);
-    const rwTop = new THREE.Mesh(rwTopGeo, mainMat); rwTop.position.set(0, 1.1, -2.0); group.add(rwTop);
-    const halo = new THREE.Mesh(haloGeo, blackMat); halo.rotation.x = -Math.PI/2; halo.position.set(0, 0.75, 0.5); group.add(halo);
-    const helm = new THREE.Mesh(helmGeo, new THREE.MeshStandardMaterial({color: 0xffff00})); helm.position.set(0, 0.7, 0.3); group.add(helm);
+
+    createMeshAndAdd(group, bodyGeo, mainMat, 0, 0.4, 0.2);
+    createMeshAndAdd(group, noseGeo, mainMat, 0, 0.3, 2.4);
+    createMeshAndAdd(group, fwGeo, blackMat, 0, 0.15, 3.0);
+    createMeshAndAdd(group, podGeo, mainMat, 0.8, 0.4, -0.2);
+    createMeshAndAdd(group, podGeo, mainMat, -0.8, 0.4, -0.2);
+    createMeshAndAdd(group, rwGeo, blackMat, 0, 0.8, -2.0);
+    createMeshAndAdd(group, rwTopGeo, mainMat, 0, 1.1, -2.0);
+    createMeshAndAdd(group, haloGeo, blackMat, 0, 0.75, 0.5, -Math.PI/2);
+    createMeshAndAdd(group, helmGeo, new THREE.MeshStandardMaterial({color: 0xffff00}), 0, 0.7, 0.3);
+
     group.castShadow = true; group.traverse(c => c.castShadow = true);
     return group;
 }
@@ -39,11 +49,11 @@ export function buildMiniMesh(color) {
     const glassMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.9 });
     const chromeMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.8, roughness: 0.2 });
 
-    const body = new THREE.Mesh(miniBodyGeo, mainMat); body.position.set(0, 0.3, 0); group.add(body);
-    const roof = new THREE.Mesh(miniRoofGeo, roofMat); roof.position.set(0, 0.75, -0.1); group.add(roof);
-    const cabin = new THREE.Mesh(miniCabinGeo, glassMat); cabin.position.set(0, 0.6, -0.1); group.add(cabin);
-    const lightL = new THREE.Mesh(miniLightGeo, chromeMat); lightL.position.set(0.5, 0.4, 1.2); group.add(lightL);
-    const lightR = new THREE.Mesh(miniLightGeo, chromeMat); lightR.position.set(-0.5, 0.4, 1.2); group.add(lightR);
+    createMeshAndAdd(group, miniBodyGeo, mainMat, 0, 0.3, 0);
+    createMeshAndAdd(group, miniRoofGeo, roofMat, 0, 0.75, -0.1);
+    createMeshAndAdd(group, miniCabinGeo, glassMat, 0, 0.6, -0.1);
+    createMeshAndAdd(group, miniLightGeo, chromeMat, 0.5, 0.4, 1.2);
+    createMeshAndAdd(group, miniLightGeo, chromeMat, -0.5, 0.4, 1.2);
 
     group.castShadow = true; group.traverse(c => c.castShadow = true);
     return group;
