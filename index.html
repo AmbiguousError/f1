@@ -1760,8 +1760,7 @@
             }
         }
 
-        function updateLogic() {
-            // Player Logic
+        function updatePlayerLogic() {
             const p = chassisBody.position;
             const targetCP = checkpoints[nextCheckpoint];
             const dx = p.x - targetCP.x; const dy = p.y - targetCP.y; const dz = p.z - targetCP.z;
@@ -1784,8 +1783,9 @@
                     nextCheckpoint++; if(nextCheckpoint >= checkpoints.length) nextCheckpoint = 0;
                 }
             }
+        }
 
-            // AI Logic
+        function updateAILogic() {
             aiCars.forEach(ai => {
                 // Update AI Friction
                 const aiComp = TYRE_COMPOUNDS[ai.tyre || "SOFT"];
@@ -1897,7 +1897,9 @@
                 }
                 ai.body.applyLocalForce(new CANNON.Vec3(0, -speed*speed*2, 0), new CANNON.Vec3(0,0,0));
             });
-            
+        }
+
+        function updateRaceState() {
             if(raceState === 'racing') {
                 if (sessionType === 'qualifying') return; // No live ranking in qualy
                 
@@ -1905,6 +1907,17 @@
                 const playerRank = rankings.findIndex(r => r.name === "Player") + 1;
                 document.getElementById('pos-val').innerText = `${playerRank}/${aiCars.length + 1}`;
             }
+        }
+
+        function updateLogic() {
+            // Player Logic
+            updatePlayerLogic();
+
+            // AI Logic
+            updateAILogic();
+
+            // Race State Logic
+            updateRaceState();
         }
 
         function completeLap() {
