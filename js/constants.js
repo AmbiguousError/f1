@@ -15,6 +15,18 @@ export const POINTS_SYSTEM = [25, 18, 15, 12, 10, 8];
 
 export const MAX_SKIDMARKS = 200;
 
+// Player-selectable teams: display name + car body color. Swatches in index.html's
+// TEAM menu row must stay in sync with these colors.
+export const TEAMS = [
+    { name: 'Ferrari', color: 0xdc0000 },
+    { name: 'Red Bull', color: 0x000080 },
+    { name: 'Mercedes', color: 0x00d2be },
+    { name: 'McLaren', color: 0xff8700 },
+    { name: 'Aston Martin', color: 0x006f62 },
+    { name: 'Alpine', color: 0x0090ff },
+    { name: 'Williams', color: 0x005aff }
+];
+
 // cannon-es collision filter groups. World bodies (track/ground/pit floor) keep the
 // engine defaults group=1/mask=-1; car chassis bodies are GROUP_CAR. A car in the pit
 // lane is "ghosted" by masking out GROUP_CAR so it only collides with the world.

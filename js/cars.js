@@ -80,7 +80,7 @@ export function createF1Car(startIdx, flyingStart, offset = 0) {
 
     if (flyingStart) { let speed = 250 / 3.6; if (isMini) speed = 140 / 3.6; const vx = Math.sin(angle) * speed; const vz = Math.cos(angle) * speed; state.chassisBody.velocity.set(vx, 0, vz); }
 
-    const mesh = isMini ? buildMiniMesh(0xdc0000) : buildCarMesh(0xdc0000);
+    const mesh = isMini ? buildMiniMesh(cfg.teamColor) : buildCarMesh(cfg.teamColor);
     if (cfg.time === 'sunset') { const hLight = new THREE.SpotLight(0xffffff, 5, 300, Math.PI / 5, 0.5, 1); hLight.position.set(0, 1, 1); hLight.target.position.set(0, 0, 20); mesh.add(hLight); mesh.add(hLight.target); }
 
     state.scene.add(mesh); state.chassisBody.userData = { mesh: mesh }; state.playerTailMat = mesh.userData.tailMat;

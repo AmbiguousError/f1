@@ -16,7 +16,11 @@ window.addEventListener('init-game', (e) => {
     cfg.weather = d.weather; cfg.qualifying = d.qualifying; cfg.carClass = d.carClass; state.zoomLevel = d.zoom;
     cfg.controlStyle = d.controlStyle || 'manual';
     cfg.startCompound = (d.startCompound === undefined) ? 1 : d.startCompound; cfg.noTyreWear = !!d.noTyreWear;
-    season.drivers = []; season.drivers.push({ name: "Player", color: 0xdc0000, points: 0, isPlayer: true, lastLapTime: 0 });
+    // Chosen name is display-only; the internal id stays "Player" everywhere (standings,
+    // finish detection and season logic all compare against that literal).
+    // Name goes into results innerHTML, so keep it to plain characters.
+    cfg.driverName = (d.driverName || '').replace(/[^A-Za-z0-9 _.\-]/g, '').trim().substring(0, 12) || 'Player'; cfg.teamColor = d.teamColor || 0xdc0000;
+    season.drivers = []; season.drivers.push({ name: "Player", color: cfg.teamColor, points: 0, isPlayer: true, lastLapTime: 0 });
     const aiCount = cfg.opponents - 1;
     for (let i = 0; i < aiCount; i++) {
         const name = AI_NAMES[i % AI_NAMES.length];

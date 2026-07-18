@@ -8,6 +8,10 @@ import { setCarGhost } from './cars.js';
 
 export function resetCar() { teleportToTrack(state.chassisBody); document.getElementById('reset-bar').style.display = 'none'; state.resetTimer = 0; }
 
+// The internal id "Player" is what every comparison uses; only swap in the chosen
+// display name at the point text is rendered.
+const displayName = (name) => name === "Player" ? cfg.driverName : name;
+
 export function getRaceStandings() {
     const getTotalDistCached = (closestIdx, lap, nextCp) => {
         let dist = ((lap - 1) * state.trackPoints.length) + closestIdx;
@@ -78,14 +82,14 @@ export function updateFinishScreenUI(results) {
             row.className = 'result-row';
             const diff = r.time - qualiResults[0].time;
             const timeStr = i === 0 ? formatTime(r.time) : `+${(diff / 1000).toFixed(3)}`;
-            const nameStr = r.name === "Player" ? `<span style="color:#e74c3c">Player</span>` : r.name;
+            const nameStr = r.name === "Player" ? `<span style="color:#e74c3c">${displayName(r.name)}</span>` : r.name;
             row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${nameStr}</span> <span class="time-gap">${timeStr}</span>`;
             list.appendChild(row);
         });
         return;
     }
-    header.innerText = "RACE RESULTS"; results.forEach((r, i) => { const pts = i < POINTS_SYSTEM.length ? POINTS_SYSTEM[i] : 0; season.drivers[r.driverIndex].points += pts; r.pts = pts; }); list.innerHTML = ''; const winnerTime = results[0].finished ? results[0].finishTime : 0; results.forEach((r, i) => { const row = document.createElement('div'); row.className = 'result-row'; let timeStr = ""; if (r.finished) { if (i === 0) { timeStr = formatTime(r.finishTime); } else { const diff = r.finishTime - winnerTime; timeStr = `+${(diff / 1000).toFixed(2)}s`; } } else { timeStr = "--"; } row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${r.name}</span> <div style="display:flex; gap:10px;"><span class="time-gap">${timeStr}</span><span>+${r.pts} PTS</span></div>`; list.appendChild(row); });
-    if (season.active) { seasonCol.style.display = 'block'; sub.innerText = `RACE ${season.currentRaceIdx + 1} / ${season.totalRaces} COMPLETE`; const standings = [...season.drivers].sort((a, b) => b.points - a.points); seasonList.innerHTML = ''; standings.forEach((d, i) => { const row = document.createElement('div'); row.className = 'result-row'; row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${d.name}</span> <span>${d.points} PTS</span>`; seasonList.appendChild(row); }); if (season.currentRaceIdx >= season.totalRaces - 1) { title.innerText = "SEASON CHAMPION: " + standings[0].name.toUpperCase(); nextBtn.innerText = "MAIN MENU"; } else { title.innerText = "RACE FINISHED"; nextBtn.innerText = "START NEXT RACE"; } } else { seasonCol.style.display = 'none'; const pRank = results.findIndex(r => r.name === "Player") + 1; title.innerText = "P" + pRank + " - FINISHED"; sub.innerText = "TIME: " + formatTime(Date.now() - state.raceStartTime); nextBtn.innerText = "MAIN MENU"; }
+    header.innerText = "RACE RESULTS"; results.forEach((r, i) => { const pts = i < POINTS_SYSTEM.length ? POINTS_SYSTEM[i] : 0; season.drivers[r.driverIndex].points += pts; r.pts = pts; }); list.innerHTML = ''; const winnerTime = results[0].finished ? results[0].finishTime : 0; results.forEach((r, i) => { const row = document.createElement('div'); row.className = 'result-row'; let timeStr = ""; if (r.finished) { if (i === 0) { timeStr = formatTime(r.finishTime); } else { const diff = r.finishTime - winnerTime; timeStr = `+${(diff / 1000).toFixed(2)}s`; } } else { timeStr = "--"; } row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(r.name)}</span> <div style="display:flex; gap:10px;"><span class="time-gap">${timeStr}</span><span>+${r.pts} PTS</span></div>`; list.appendChild(row); });
+    if (season.active) { seasonCol.style.display = 'block'; sub.innerText = `RACE ${season.currentRaceIdx + 1} / ${season.totalRaces} COMPLETE`; const standings = [...season.drivers].sort((a, b) => b.points - a.points); seasonList.innerHTML = ''; standings.forEach((d, i) => { const row = document.createElement('div'); row.className = 'result-row'; row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(d.name)}</span> <span>${d.points} PTS</span>`; seasonList.appendChild(row); }); if (season.currentRaceIdx >= season.totalRaces - 1) { title.innerText = "SEASON CHAMPION: " + displayName(standings[0].name).toUpperCase(); nextBtn.innerText = "MAIN MENU"; } else { title.innerText = "RACE FINISHED"; nextBtn.innerText = "START NEXT RACE"; } } else { seasonCol.style.display = 'none'; const pRank = results.findIndex(r => r.name === "Player") + 1; title.innerText = "P" + pRank + " - FINISHED"; sub.innerText = "TIME: " + formatTime(Date.now() - state.raceStartTime); nextBtn.innerText = "MAIN MENU"; }
 }
 
 export function updateStrategyUI() {
