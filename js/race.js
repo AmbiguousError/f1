@@ -47,7 +47,9 @@ export function getRaceStandings() {
         dist: getTotalDistCached(state.playerLastClosestIdx, state.currentLap, state.nextCheckpoint),
         driverIndex: 0,
         finished: pFinished,
-        finishTime: pFinished ? (Date.now() - state.raceStartTime) : 0
+        finishTime: pFinished ? (Date.now() - state.raceStartTime) : 0,
+        speed: state.chassisBody ? state.chassisBody.velocity.length() : 0,
+        color: cfg.teamColor
     });
     state.aiCars.forEach(ai => {
         results.push({
@@ -55,7 +57,9 @@ export function getRaceStandings() {
             dist: getTotalDistCached(ai.lastClosestIdx, ai.lap, ai.nextCp),
             driverIndex: ai.id + 1,
             finished: ai.finished,
-            finishTime: ai.finishTime
+            finishTime: ai.finishTime,
+            speed: ai.body ? ai.body.velocity.length() : 0,
+            color: season.drivers[ai.id + 1] ? season.drivers[ai.id + 1].color : 0xffffff
         });
     });
     results.sort((a, b) => {
@@ -391,5 +395,51 @@ export function updateLogic() {
         ai.body.applyLocalForce(scratch.downforceVec, scratch.zeroVec);
     });
 
-    if (state.raceState === 'racing') { if (state.sessionType === 'qualifying') return; const rankings = getRaceStandings(); const playerRank = rankings.findIndex(r => r.name === "Player") + 1; document.getElementById('pos-val').innerText = `${playerRank}/${state.aiCars.length + 1}`; }
+    if (state.raceState === 'racing') {
+        if (state.sessionType !== 'qualifying') {
+            const rankings = getRaceStandings();
+            const playerRank = rankings.findIndex(r => r.name === "Player") + 1;
+            document.getElementById('pos-val').innerText = `${playerRank}/${state.aiCars.length + 1}`;
+            updateLiveLeaderboard(rankings);
+        }
+    } else {
+        const lb = document.getElementById('leaderboard-hud');
+        if (lb) lb.style.display = 'none';
+    }
+}
+
+function updateLiveLeaderboard(rankings) {
+    const container = document.getElementById('leaderboard-hud');
+    if (!container) return;
+    container.style.display = 'block';
+    container.innerHTML = '';
+    const ptSpacing = state.trackPoints.length > 1 ? state.trackPoints[0].distanceTo(state.trackPoints[1]) : 1.0;
+    rankings.forEach((r, i) => {
+        const row = document.createElement('div');
+        row.className = 'leaderboard-row';
+        if (r.name === 'Player') row.classList.add('player-row');
+        let gapText = '';
+        if (i === 0) {
+            gapText = r.finished ? 'FIN' : 'INTERVAL';
+        } else {
+            const front = rankings[i - 1];
+            if (r.finished && front.finished) {
+                const diff = (r.finishTime - front.finishTime) / 1000;
+                gapText = `+${diff.toFixed(2)}s`;
+            } else {
+                const distGap = front.dist - r.dist;
+                const metersGap = distGap * ptSpacing;
+                const speed = Math.max(8.0, r.speed || 0);
+                const gapSeconds = metersGap / speed;
+                gapText = `+${gapSeconds.toFixed(1)}s`;
+            }
+        }
+        const colorHex = '#' + (r.color >>> 0).toString(16).padStart(6, '0');
+        row.innerHTML = `
+            <span class="leaderboard-pos pos-${i + 1}">${i + 1}</span>
+            <span class="leaderboard-name" style="color: ${colorHex}">${displayName(r.name)}</span>
+            <span class="leaderboard-gap">${gapText}</span>
+        `;
+        container.appendChild(row);
+    });
 }

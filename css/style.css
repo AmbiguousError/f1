@@ -174,3 +174,54 @@ button#start-btn:hover { background: #c0392b; transform: scale(1.05); }
     border-color: #ffffff !important;
     box-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
 }
+
+#leaderboard-hud {
+    position: absolute;
+    left: 15px;
+    top: 15px;
+    background: rgba(10, 10, 10, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: white;
+    font-family: monospace;
+    font-size: 11px;
+    display: none;
+    z-index: 40;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    min-width: 170px;
+}
+.leaderboard-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    padding: 3px 0;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.leaderboard-row:last-child {
+    border-bottom: none;
+}
+.leaderboard-pos {
+    font-weight: bold;
+    color: #888;
+    width: 14px;
+}
+.leaderboard-name {
+    width: 80px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.leaderboard-gap {
+    text-align: right;
+    color: #aaa;
+    min-width: 45px;
+}
+.leaderboard-row.player-row {
+    background: rgba(231, 76, 60, 0.2);
+    border-left: 2px solid #e74c3c;
+    padding-left: 4px;
+}

@@ -59,7 +59,7 @@ window.addEventListener('toggle-pause', () => { togglePause(); });
 window.addEventListener('toggle-mute', () => { state.audioMuted = !state.audioMuted; const btn = document.getElementById('mute-btn'); btn.innerText = state.audioMuted ? "🔇" : "🔊"; btn.style.opacity = state.audioMuted ? "0.5" : "1.0"; if (state.audioCtx) { if (state.audioMuted) state.audioCtx.suspend(); else state.audioCtx.resume(); } });
 window.addEventListener('toggle-cam', () => { state.zoomLevel = (state.zoomLevel + 1) % ZOOM_LEVELS.length; });
 
-function resetUI() { document.getElementById('finish-screen').style.display = 'none'; document.getElementById('hud').style.display = 'none'; document.getElementById('mute-btn').style.display = 'none'; document.getElementById('cam-btn').style.display = 'none'; document.getElementById('pause-menu').style.display = 'none'; document.getElementById('start-screen').style.display = 'flex'; const btn = document.getElementById('start-btn'); btn.innerText = "ENTER COCKPIT"; btn.disabled = false; }
+function resetUI() { document.getElementById('finish-screen').style.display = 'none'; document.getElementById('hud').style.display = 'none'; document.getElementById('leaderboard-hud').style.display = 'none'; document.getElementById('mute-btn').style.display = 'none'; document.getElementById('cam-btn').style.display = 'none'; document.getElementById('pause-menu').style.display = 'none'; document.getElementById('start-screen').style.display = 'flex'; const btn = document.getElementById('start-btn'); btn.innerText = "ENTER COCKPIT"; btn.disabled = false; }
 
 function init() {
     state.rng = createRNG(cfg.seed); state.currentLap = 1; state.startTime = 0; state.raceStartTime = 0; state.bestTime = Infinity; state.nextCheckpoint = 1;
