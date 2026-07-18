@@ -4,6 +4,7 @@ import { TYRE_COMPOUNDS, TYRE_COLORS, POINTS_SYSTEM } from './constants.js';
 import { formatTime } from './utils.js';
 import { findClosestTrackPoint, getPitLaneOffset, teleportToTrack } from './track.js';
 import { spawnDust } from './effects.js';
+import { setCarGhost } from './cars.js';
 
 export function resetCar() { teleportToTrack(state.chassisBody); document.getElementById('reset-bar').style.display = 'none'; state.resetTimer = 0; }
 
@@ -159,6 +160,7 @@ export function updateLogic() {
         }
 
         // AI Pit Area Detection and State
+        const wasInPitLane = ai.inPitLane;
         let inPitArea = (cIdx >= cfg.trackRes - 60 || cIdx <= 60);
         if (inPitArea) {
             if (ai.wantsToPit || ai.inPitLane) {
@@ -167,6 +169,8 @@ export function updateLogic() {
         } else {
             ai.inPitLane = false;
         }
+        // Ghost while in the pit lane (no car-car collisions, semi-transparent); restore on exit.
+        if (ai.inPitLane !== wasInPitLane) setCarGhost(ai.body, ai.ghostMats, ai.inPitLane);
 
         // Determine target point with pit lane offset if in pit lane
         let targetOffset = 0;
@@ -217,9 +221,11 @@ export function updateLogic() {
             // Pit lane speed limit: 55 km/h
             desiredSpeed = 55 / 3.6;
 
-            // Slow down to stop in the pit box
+            // Slow down to stop in the pit box — but only while a stop is still owed;
+            // once the tyre change is done (wantsToPit false) drive out at the limiter,
+            // otherwise the car parks at the box forever.
             const distToPitBoxSq = (pos.x - state.pitBoxPosition.x) ** 2 + (pos.z - state.pitBoxPosition.z) ** 2;
-            if (distToPitBoxSq < 225) {
+            if (distToPitBoxSq < 225 && (ai.wantsToPit || ai.isPitting)) {
                 const dist = Math.sqrt(distToPitBoxSq);
                 if (dist < 4.5) {
                     desiredSpeed = 0; // Stop
@@ -251,13 +257,18 @@ export function updateLogic() {
         if (state.pitBoxPosition && state.raceState === 'racing' && !ai.finished && ai.inPitLane) {
             const adx = pos.x - state.pitBoxPosition.x; const adz = pos.z - state.pitBoxPosition.z;
             const distToPitBoxSq = adx * adx + adz * adz;
-            if (distToPitBoxSq < 225 && speed < 1.5) {
+            // wantsToPit/isPitting gate: without it, a car accelerating away from its finished
+            // stop is still slow + near the box and would immediately begin another stop.
+            if (distToPitBoxSq < 225 && speed < 1.5 && (ai.wantsToPit || ai.isPitting)) {
                 if (!ai.isPitting) {
                     ai.isPitting = true;
                     ai.pitStopTimer = 0;
                 }
                 ai.pitStopTimer += 1 / 60;
-                if (ai.pitStopTimer >= 3.0) {
+                // Low-res tyre-change visual: blink the compound stripes during the stop.
+                const stripeOn = Math.floor(ai.pitStopTimer * 4) % 2 === 0;
+                ai.tyreStripes.forEach(s => s.visible = stripeOn);
+                if (ai.pitStopTimer >= 5.0) {
                     // Pit stop complete! Choose next compound strategically based on remaining laps
                     const remainingLaps = state.totalLaps - ai.lap;
                     if (remainingLaps <= 2) {
@@ -268,14 +279,16 @@ export function updateLogic() {
                         ai.compoundIdx = 2; // Hard (Long stint)
                     }
                     ai.tyreLife = 100.0;
-                    ai.tyreStripes.forEach(s => s.material.color.setHex(TYRE_COLORS[ai.compoundIdx]));
+                    ai.tyreStripes.forEach(s => { s.material.color.setHex(TYRE_COLORS[ai.compoundIdx]); s.visible = true; });
                     ai.wantsToPit = false;
                     ai.isPitting = false;
                 }
             } else {
+                if (ai.isPitting) ai.tyreStripes.forEach(s => s.visible = true);
                 ai.isPitting = false;
             }
         } else {
+            if (ai.isPitting) ai.tyreStripes.forEach(s => s.visible = true);
             ai.isPitting = false;
         }
 

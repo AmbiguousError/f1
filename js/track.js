@@ -104,8 +104,8 @@ export function generatePitLane() {
     const pitLen = 60; const pitVertices = []; const pitIndices = []; const pitUvs = [];
     const pitWidth = 8; const trackEdge = cfg.roadWidth / 2; const wallWidth = 2.0;
 
-    const pitWallGroup = new THREE.Group(); const garageGroup = new THREE.Group(); const linesGroup = new THREE.Group(); const grandstandGroup = new THREE.Group();
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.9 }); const garageMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.5 });
+    const garageGroup = new THREE.Group(); const linesGroup = new THREE.Group(); const grandstandGroup = new THREE.Group();
+    const garageMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.5 });
     const roofMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 }); const doorMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
     const bollardMat = new THREE.MeshStandardMaterial({ color: 0xff6600, roughness: 0.6 }); const bollardGeo = new THREE.ConeGeometry(0.3, 0.8, 8); bollardGeo.translate(0, 0.4, 0);
     const seatMat = new THREE.MeshStandardMaterial({ color: 0x3498db, roughness: 0.9 }); const structureMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
@@ -134,11 +134,9 @@ export function generatePitLane() {
 
         if (t > 0 && t < 1 && i % 3 === 0) { const bPos = p1.clone().add(side.clone().multiplyScalar(trackEdge + (currentOut - trackEdge) * 0.2)); const bollard = new THREE.Mesh(bollardGeo, bollardMat); bollard.position.copy(bPos); bollard.position.y += 0.05; linesGroup.add(bollard); }
         if (t === 1) {
-            const wallCenter = p1.clone().add(side.clone().multiplyScalar(trackEdge + wallWidth / 2));
-            if (isSpaceClear(wallCenter, trackEdge + 1.0)) {
-                const wallGeo = new THREE.BoxGeometry(wallWidth * 0.7, 1.2, dist + 0.1); const wall = new THREE.Mesh(wallGeo, wallMat); wall.position.copy(wallCenter); wall.position.y += 0.6; wall.rotation.y = Math.atan2(tan.x, tan.z); pitWallGroup.add(wall);
-                const wallShape = new CANNON.Box(new CANNON.Vec3((wallWidth * 0.7) / 2, 0.6, (dist + 0.1) / 2)); const wallBody = new CANNON.Body({ mass: 0, material: state.world.defaultMaterial }); wallBody.addShape(wallShape); wallBody.position.copy(wallCenter); wallBody.position.y += 0.6; wallBody.quaternion.setFromEuler(0, Math.atan2(tan.x, tan.z), 0); state.world.addBody(wallBody);
-            }
+            // No physical pit wall anymore: cars in the pit lane are ghosted (no car-car
+            // collisions), so the wall's protective role is gone. wallWidth is still part of
+            // the lane's lateral layout (pit box / getPitLaneOffset), so it stays.
             if (i % 5 === 0 && i < pitLen - rampLen - 5) {
                 const garageDepth = 8; const garageWidth = dist * 5; const garageCenter = p1.clone().add(side.clone().multiplyScalar(currentOut + garageDepth / 2 + 0.5));
                 if (isSpaceClear(garageCenter, trackEdge + 3.0)) {
@@ -170,7 +168,7 @@ export function generatePitLane() {
         }
     }
 
-    state.scene.add(pitWallGroup); state.scene.add(garageGroup); state.scene.add(linesGroup); state.scene.add(grandstandGroup);
+    state.scene.add(garageGroup); state.scene.add(linesGroup); state.scene.add(grandstandGroup);
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pitVertices, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(pitUvs, 2)); geo.setIndex(pitIndices); geo.computeVertexNormals();
     const mat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.95, side: THREE.DoubleSide }); const mesh = new THREE.Mesh(geo, mat); mesh.receiveShadow = true; state.scene.add(mesh);
 }

@@ -2,6 +2,22 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { state, cfg, season } from './state.js';
 import { buildCarMesh, buildMiniMesh, buildTyreStripe, wGeoFront, wGeoRear, wGeoMini, wMat, rimMat } from './car-models.js';
+import { GROUP_WORLD, GROUP_CAR } from './constants.js';
+
+// Ghost a car while it's in the pit lane: it keeps driving on the world (track, pit
+// floor) but passes through other cars, and its meshes go semi-transparent. `mats`
+// must be the car's own per-car materials — shared materials would fade every car.
+export function setCarGhost(body, mats, ghosted) {
+    body.collisionFilterMask = ghosted ? GROUP_WORLD : (GROUP_WORLD | GROUP_CAR);
+    mats.forEach(m => { m.transparent = ghosted; m.opacity = ghosted ? 0.35 : 1.0; });
+}
+
+function collectCarMaterials(mesh, wheels) {
+    const mats = new Set();
+    mesh.traverse(c => { if (c.material) mats.add(c.material); });
+    wheels.forEach(g => g.traverse(c => { if (c.material) mats.add(c.material); }));
+    return [...mats];
+}
 
 export function createAICar(startIdx, offset, color, id, name) {
     const isMini = cfg.carClass === 'mini'; const p1 = state.trackPoints[startIdx]; const nextIdx = (startIdx + 5) % state.trackPoints.length; const p2 = state.trackPoints[nextIdx];
@@ -9,6 +25,7 @@ export function createAICar(startIdx, offset, color, id, name) {
     const body = new CANNON.Body({ mass: 800 }); body.linearDamping = 0.05; body.angularDamping = 0.5;
     const colSize = isMini ? new CANNON.Vec3(0.7, 0.4, 1.2) : new CANNON.Vec3(0.8, 0.3, 2.2);
     const shape = new CANNON.Box(colSize); body.addShape(shape, new CANNON.Vec3(0, 0.4, 0));
+    body.collisionFilterGroup = GROUP_CAR; body.collisionFilterMask = GROUP_WORLD | GROUP_CAR;
     body.position.copy(startPos); body.position.y += 1; const angle = Math.atan2(p2.x - p1.x, p2.z - p1.z); body.quaternion.setFromEuler(0, angle, 0);
 
     const mesh = isMini ? buildMiniMesh(color) : buildCarMesh(color); state.scene.add(mesh); body.userData = { mesh: mesh };
@@ -22,9 +39,11 @@ export function createAICar(startIdx, offset, color, id, name) {
 
     const startingCompound = Math.floor(Math.random() * 3); // 0=Soft, 1=Medium, 2=Hard
 
+    // Per-car clones so pit-lane ghosting can fade this car's wheels without fading every car's.
+    const wMatCar = wMat.clone(); const rimMatCar = rimMat.clone();
     vehicle.wheelInfos.forEach((w, i) => {
         const isRear = i > 1; const grp = new THREE.Group(); let tire, rim;
-        if (isMini) { tire = new THREE.Mesh(wGeoMini, wMat); rim = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.15, 16), rimMat); } else { tire = new THREE.Mesh(isRear ? wGeoRear : wGeoFront, wMat); rim = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, isRear ? 0.7 : 0.4, 16), rimMat); }
+        if (isMini) { tire = new THREE.Mesh(wGeoMini, wMatCar); rim = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.15, 16), rimMatCar); } else { tire = new THREE.Mesh(isRear ? wGeoRear : wGeoFront, wMatCar); rim = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, isRear ? 0.7 : 0.4, 16), rimMatCar); }
         tire.rotation.z = Math.PI / 2; tire.castShadow = true; rim.rotation.z = Math.PI / 2; grp.add(tire); grp.add(rim);
         const stripe = buildTyreStripe(isMini, isRear, startingCompound); if (i % 2 !== 0) stripe.position.x *= -1; grp.add(stripe); aiStripes.push(stripe);
         state.scene.add(grp); wheels.push(grp);
@@ -45,7 +64,7 @@ export function createAICar(startIdx, offset, color, id, name) {
     if (isMini) { speedBase = Math.floor(speedBase * 0.55); speedVar = 20; }
     const skill = { topSpeed: speedBase + Math.random() * speedVar, cornering: cornBase + Math.random() * cornVar, lookAhead: 20 + Math.floor(Math.random() * 10) };
     const pitThreshold = 30.0 + Math.random() * 10.0;
-    state.aiCars.push({ vehicle, body, wheels, skill, id, name, lap: 1, nextCp: 1, finished: false, finishTime: 0, offTrackTimer: 0, flipTimer: 0, tailMat: mesh.userData.tailMat, tyreStripes: aiStripes, compoundIdx: startingCompound, tyreLife: 100.0, pitThreshold, wantsToPit: false, inPitLane: false, pitStopTimer: 0, lastClosestIdx: startIdx, isPitting: false });
+    state.aiCars.push({ vehicle, body, wheels, skill, id, name, lap: 1, nextCp: 1, finished: false, finishTime: 0, offTrackTimer: 0, flipTimer: 0, tailMat: mesh.userData.tailMat, tyreStripes: aiStripes, compoundIdx: startingCompound, tyreLife: 100.0, pitThreshold, wantsToPit: false, inPitLane: false, pitStopTimer: 0, lastClosestIdx: startIdx, isPitting: false, ghostMats: collectCarMaterials(mesh, wheels) });
 }
 
 export function createF1Car(startIdx, flyingStart, offset = 0) {
@@ -56,6 +75,7 @@ export function createF1Car(startIdx, flyingStart, offset = 0) {
     state.chassisBody = new CANNON.Body({ mass: 800 }); state.chassisBody.linearDamping = 0.05; state.chassisBody.angularDamping = 0.5;
     const colSize = isMini ? new CANNON.Vec3(0.7, 0.4, 1.2) : new CANNON.Vec3(0.8, 0.3, 2.2);
     const chassisShape = new CANNON.Box(colSize); state.chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0.4, 0));
+    state.chassisBody.collisionFilterGroup = GROUP_CAR; state.chassisBody.collisionFilterMask = GROUP_WORLD | GROUP_CAR;
     state.chassisBody.position.copy(startPos); state.chassisBody.position.y += 1; const angle = Math.atan2(p2.x - p1.x, p2.z - p1.z); state.chassisBody.quaternion.setFromEuler(0, angle, 0);
 
     if (flyingStart) { let speed = 250 / 3.6; if (isMini) speed = 140 / 3.6; const vx = Math.sin(angle) * speed; const vz = Math.cos(angle) * speed; state.chassisBody.velocity.set(vx, 0, vz); }
@@ -72,9 +92,10 @@ export function createF1Car(startIdx, flyingStart, offset = 0) {
     state.vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(width, h, rZ), radius: wRadiusR }); state.vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(-width, h, rZ), radius: wRadiusR });
     state.vehicle.addToWorld(state.world);
 
+    const wMatCar = wMat.clone(); const rimMatCar = rimMat.clone();
     state.vehicle.wheelInfos.forEach((w, i) => {
         const isRear = i > 1; const grp = new THREE.Group(); let tire, rim;
-        if (isMini) { tire = new THREE.Mesh(wGeoMini, wMat); rim = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.15, 16), rimMat); } else { tire = new THREE.Mesh(isRear ? wGeoRear : wGeoFront, wMat); rim = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, isRear ? 0.7 : 0.4, 16), rimMat); }
+        if (isMini) { tire = new THREE.Mesh(wGeoMini, wMatCar); rim = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.15, 16), rimMatCar); } else { tire = new THREE.Mesh(isRear ? wGeoRear : wGeoFront, wMatCar); rim = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, isRear ? 0.7 : 0.4, 16), rimMatCar); }
         tire.rotation.z = Math.PI / 2; tire.castShadow = true; rim.rotation.z = Math.PI / 2; grp.add(tire); grp.add(rim);
         const stripe = buildTyreStripe(isMini, isRear, state.tyreCompoundIdx); if (i % 2 !== 0) stripe.position.x *= -1; grp.add(stripe); state.playerTyreStripes.push(stripe);
         state.scene.add(grp); state.visualWheels.push(grp);
@@ -84,4 +105,5 @@ export function createF1Car(startIdx, flyingStart, offset = 0) {
     for (let i = 0; i < 4; i++) { state.vehicle.updateWheelTransform(i); const t = state.vehicle.wheelInfos[i].worldTransform; state.visualWheels[i].position.copy(t.position); state.visualWheels[i].quaternion.copy(t.quaternion); }
 
     state.playerLastClosestIdx = startIdx;
+    state.playerGhostMats = collectCarMaterials(mesh, state.visualWheels);
 }

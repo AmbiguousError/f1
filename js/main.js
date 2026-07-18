@@ -5,7 +5,7 @@ import { AI_NAMES, AI_COLORS, ZOOM_LEVELS, TYRE_COMPOUNDS, TYRE_COLORS } from '.
 import { createRNG, formatTime } from './utils.js';
 import { setupAudio, updateAudio } from './audio.js';
 import { generateCircuit, generateScenery, setupMinimap, updateMinimap, findClosestTrackPoint, getPitLaneOffset } from './track.js';
-import { createF1Car, createAICar } from './cars.js';
+import { createF1Car, createAICar, setCarGhost } from './cars.js';
 import { setupInputs } from './input.js';
 import { spawnDust, updateParticles, setupSkidmarkPool, updateSkidmarks, dustMaterials } from './effects.js';
 import { updateLogic, resetCar, updateStrategyUI } from './race.js';
@@ -222,7 +222,7 @@ function animate() {
             // Race is over: this autopilot-to-finish-line branch owns the car exclusively. Make
             // sure a pit autopilot sequence can never also claim control (e.g. player crossed
             // the line while driving into the pits) and clean up its HUD if it was active.
-            if (state.pitPhase !== 'none') { state.pitPhase = 'none'; state.pitTimer = 0; document.getElementById('pit-msg').style.display = 'none'; }
+            if (state.pitPhase !== 'none') { state.pitPhase = 'none'; state.pitTimer = 0; document.getElementById('pit-msg').style.display = 'none'; setCarGhost(state.chassisBody, state.playerGhostMats, false); state.playerTyreStripes.forEach(s => s.visible = true); }
             const lookAhead = 10; const targetIdx = (cIdx + lookAhead) % state.trackPoints.length;
             scratch.aiTargetVec.set(state.trackPoints[targetIdx].x, state.trackPoints[targetIdx].y, state.trackPoints[targetIdx].z);
             state.chassisBody.pointToLocalFrame(scratch.aiTargetVec, scratch.aiLocalPoint);
@@ -253,7 +253,7 @@ function animate() {
                     // "towards the rendered pit lane/garages", not the grandstand side.
                     const sideEx = tanEz / tanELen, sideEz = -tanEx / tanELen;
                     const lateral = (pos.x - p1e.x) * sideEx + (pos.z - p1e.z) * sideEz;
-                    if (lateral > PIT_ENTRY_LATERAL_THRESHOLD) { state.pitPhase = 'entering'; state.pitTimer = 0; }
+                    if (lateral > PIT_ENTRY_LATERAL_THRESHOLD) { state.pitPhase = 'entering'; state.pitTimer = 0; setCarGhost(state.chassisBody, state.playerGhostMats, true); }
                 }
             }
 
@@ -288,9 +288,13 @@ function animate() {
                 } else if (state.pitPhase === 'stopped') {
                     desiredSpeed = 0;
                     state.pitTimer += 1 / 60; msgEl.style.display = 'block'; msgEl.style.borderColor = '#3498db';
-                    if (state.pitTimer < 3.0) {
-                        const pct = Math.floor((state.pitTimer / 3.0) * 100); msgEl.innerText = `CHANGING TYRES... ${pct}%`;
+                    if (state.pitTimer < 5.0) {
+                        const pct = Math.floor((state.pitTimer / 5.0) * 100); msgEl.innerText = `CHANGING TYRES... ${pct}%`;
+                        // Low-res "tyres being changed" visual: blink the compound stripes.
+                        const stripeOn = Math.floor(state.pitTimer * 4) % 2 === 0;
+                        state.playerTyreStripes.forEach(s => s.visible = stripeOn);
                     } else {
+                        state.playerTyreStripes.forEach(s => s.visible = true);
                         if (state.tyreLife < 100 || state.tyreCompoundIdx !== state.nextTyreCompoundIdx) {
                             state.tyreLife = 100; state.tyreCompoundIdx = state.nextTyreCompoundIdx; state.playerTyreStripes.forEach(s => s.material.color.setHex(TYRE_COLORS[state.tyreCompoundIdx]));
                             const badgeEl = document.getElementById('compound-badge');
@@ -308,7 +312,7 @@ function animate() {
                 } else if (state.pitPhase === 'exiting') {
                     msgEl.style.display = 'block'; msgEl.innerText = "REJOINING TRACK"; msgEl.style.borderColor = '#3498db';
                     let exitRelIdx = cIdx; if (exitRelIdx > cfg.trackRes / 2) exitRelIdx -= cfg.trackRes;
-                    if (exitRelIdx > PIT_LEN - PIT_RAMP_LEN) { state.pitPhase = 'none'; state.pitTimer = 0; msgEl.style.display = 'none'; }
+                    if (exitRelIdx > PIT_LEN - PIT_RAMP_LEN) { state.pitPhase = 'none'; state.pitTimer = 0; msgEl.style.display = 'none'; setCarGhost(state.chassisBody, state.playerGhostMats, false); }
                 }
 
                 if (desiredSpeed === 0) { brakeVal = 150; force = 0; }

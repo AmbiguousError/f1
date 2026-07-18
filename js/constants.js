@@ -14,3 +14,9 @@ export const ZOOM_LEVELS = [ { y: 60, dist: 40 }, { y: 120, dist: 80 }, { y: 200
 export const POINTS_SYSTEM = [25, 18, 15, 12, 10, 8];
 
 export const MAX_SKIDMARKS = 200;
+
+// cannon-es collision filter groups. World bodies (track/ground/pit floor) keep the
+// engine defaults group=1/mask=-1; car chassis bodies are GROUP_CAR. A car in the pit
+// lane is "ghosted" by masking out GROUP_CAR so it only collides with the world.
+export const GROUP_WORLD = 1;
+export const GROUP_CAR = 2;

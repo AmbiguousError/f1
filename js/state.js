@@ -32,7 +32,7 @@ export const state = {
 
     zoomLevel: 2,
 
-    playerLastClosestIdx: 0,
+    playerLastClosestIdx: 0, playerGhostMats: [],
     inputsInitialized: false,
 };
 
