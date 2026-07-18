@@ -67,8 +67,12 @@ function init() {
         state.totalLaps = 1; const spawnIdx = Math.floor(cfg.trackRes * 0.96); createF1Car(spawnIdx, true, 0);
     } else {
         state.totalLaps = cfg.laps; const grid = season.currentGrid;
+        // Staggered 2-wide F1-style grid: ~7 world units per slot instead of the old
+        // 20-track-index (~45 unit) single-file spread. Convert units -> point indices
+        // via actual point spacing, since it varies per track length.
+        const ptSpacing = Math.max(0.5, state.trackPoints[0].distanceTo(state.trackPoints[1]));
         for (let i = 0; i < grid.length; i++) {
-            const driverIdx = grid[i]; const distBack = (i + 1) * 20;
+            const driverIdx = grid[i]; const distBack = Math.max(2, Math.round((8 + i * 7) / ptSpacing));
             let spawnPtIdx = (cfg.trackRes + 0 - distBack) % cfg.trackRes; if (spawnPtIdx < 0) spawnPtIdx += cfg.trackRes;
 
             const offset = (i % 2 === 0) ? -3 : 3;
