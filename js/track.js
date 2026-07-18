@@ -112,7 +112,7 @@ export function generatePitLane() {
     const garageMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.5 });
     const roofMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 }); const doorMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
     const bollardMat = new THREE.MeshStandardMaterial({ color: 0xff6600, roughness: 0.6 }); const bollardGeo = new THREE.ConeGeometry(0.3, 0.8, 8); bollardGeo.translate(0, 0.4, 0);
-    const seatMat = new THREE.MeshStandardMaterial({ color: 0x3498db, roughness: 0.9 }); const structureMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
+    const seatMat = new THREE.MeshStandardMaterial({ color: 0x3498db, roughness: 0.9 }); const structureMat = new THREE.MeshStandardMaterial({ color: 0x555555 }); const standRoofMat = new THREE.MeshStandardMaterial({ color: 0xdde4e8, roughness: 0.5, metalness: 0.2 });
 
     for (let i = -pitLen; i <= pitLen; i++) {
         let idx = ((cfg.trackRes + i) % cfg.trackRes + cfg.trackRes) % cfg.trackRes; let nextIdx = ((cfg.trackRes + i + 1) % cfg.trackRes + cfg.trackRes) % cfg.trackRes;
@@ -163,9 +163,9 @@ export function generatePitLane() {
         if (i % 8 === 0 && i > -pitLen + 5 && i < pitLen - 5) {
             const standWidth = dist * 8; const standDepth = 15; const standCenter = p1.clone().add(side.clone().multiplyScalar(-trackEdge - standDepth / 2 - 5));
             if (isSpaceClear(standCenter, standDepth / 2 + trackEdge + 5.0)) {
-                const gsGroup = new THREE.Group(); gsGroup.position.copy(standCenter); gsGroup.rotation.y = Math.atan2(tan.x, tan.z);
+                const gsGroup = new THREE.Group(); gsGroup.position.copy(standCenter); gsGroup.rotation.y = Math.atan2(tan.x, tan.z) + Math.PI;
                 for (let s = 0; s < 4; s++) { const tier = new THREE.Mesh(new THREE.BoxGeometry(standDepth - (s * 3), 1, standWidth - 0.5), seatMat); tier.position.set(-(s * 1.5), s * 1 + 0.5, 0); gsGroup.add(tier); }
-                const roofGeo = new THREE.BoxGeometry(standDepth + 2, 0.5, standWidth); const roof = new THREE.Mesh(roofGeo, structureMat); roof.position.set(0, 8, 0); roof.rotation.z = -0.1; gsGroup.add(roof);
+                const roofGeo = new THREE.BoxGeometry(standDepth + 2, 0.5, standWidth); const roof = new THREE.Mesh(roofGeo, standRoofMat); roof.position.set(0, 8, 0); roof.rotation.z = -0.1; gsGroup.add(roof);
                 const pillarGeo = new THREE.CylinderGeometry(0.2, 0.2, 8); const p1Mesh = new THREE.Mesh(pillarGeo, structureMat); p1Mesh.position.set(-6, 4, standWidth / 3); const p2Mesh = new THREE.Mesh(pillarGeo, structureMat); p2Mesh.position.set(-6, 4, -standWidth / 3); gsGroup.add(p1Mesh); gsGroup.add(p2Mesh);
                 grandstandGroup.add(gsGroup);
             }
