@@ -288,7 +288,7 @@ export function updateLogic() {
             else if (aiOnSurface === 'grass') aiSurfaceMultiplier = 1.8;
 
             const aiBaseWearRate = (aiSpeed * 0.00015) + (Math.abs(steerVal) * aiSpeed * 0.0006);
-            const aiWearRate = aiBaseWearRate * aiCompound.wear * aiSurfaceMultiplier;
+            const aiWearRate = aiBaseWearRate * aiCompound.wear * aiSurfaceMultiplier * 0.25;
             ai.tyreLife -= aiWearRate;
             if (ai.tyreLife < 0) ai.tyreLife = 0;
         }

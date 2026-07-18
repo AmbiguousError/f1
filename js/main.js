@@ -412,7 +412,7 @@ function animate() {
             const compound = TYRE_COMPOUNDS[state.tyreCompoundIdx];
             const baseWear = (speed * 0.00015) + (Math.abs(state.currentSteer) * speed * 0.0006);
             const brakingWear = (inputs.brake && speed > 10) ? (speed * 0.0004) : 0;
-            const wearRate = (baseWear + brakingWear) * compound.wear * surfaceMultiplier;
+            const wearRate = (baseWear + brakingWear) * compound.wear * surfaceMultiplier * 0.25;
             if (!cfg.noTyreWear) state.tyreLife -= wearRate;
             if (state.tyreLife < 0) state.tyreLife = 0;
 
