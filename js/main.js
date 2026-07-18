@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { state, cfg, season, inputs, scratch, globalGeometries, globalMaterials } from './state.js';
-import { AI_NAMES, AI_COLORS, ZOOM_LEVELS, TYRE_COMPOUNDS, TYRE_COLORS } from './constants.js';
+import { AI_DRIVERS, ZOOM_LEVELS, TYRE_COMPOUNDS, TYRE_COLORS } from './constants.js';
 import { createRNG, formatTime } from './utils.js';
 import { setupAudio, updateAudio } from './audio.js';
 import { generateCircuit, generateScenery, setupMinimap, updateMinimap, findClosestTrackPoint, getPitLaneOffset } from './track.js';
@@ -23,13 +23,10 @@ window.addEventListener('init-game', (e) => {
     season.drivers = []; season.drivers.push({ name: "Player", color: cfg.teamColor, points: 0, isPlayer: true, lastLapTime: 0 });
     const aiCount = cfg.opponents - 1;
     for (let i = 0; i < aiCount; i++) {
-        const name = AI_NAMES[i % AI_NAMES.length];
-        let perf = 1.0;
-        if (["Verstappen", "Hamilton", "Leclerc", "Norris"].includes(name)) perf = 1.03;
-        else if (["Sainz", "Russell", "Perez", "Piastri"].includes(name)) perf = 1.00;
-        else perf = 0.96;
-        perf += Math.random() * 0.03;
-        season.drivers.push({ name: name, color: AI_COLORS[i % AI_COLORS.length], points: 0, isPlayer: false, lastLapTime: 0, performance: perf });
+        const entry = AI_DRIVERS[i % AI_DRIVERS.length];
+        // Small random jitter so championship order is a strong tendency, not a script.
+        const perf = entry.performance + Math.random() * 0.02;
+        season.drivers.push({ name: entry.name, color: entry.color, points: 0, isPlayer: false, lastLapTime: 0, performance: perf });
     }
     season.currentGrid = []; for (let i = 1; i < season.drivers.length; i++) season.currentGrid.push(i); season.currentGrid.push(0);
 

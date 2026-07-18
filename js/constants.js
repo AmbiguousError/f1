@@ -6,8 +6,22 @@ export const TYRE_COMPOUNDS = [
 
 export const TYRE_COLORS = [0xeb2f06, 0xf1c40f, 0xf5f6fa];
 
-export const AI_NAMES = ["Verstappen", "Hamilton", "Leclerc", "Norris", "Alonso", "Sainz", "Russell", "Perez", "Piastri", "Gasly", "Albon"];
-export const AI_COLORS = [0x000080, 0x00d2be, 0xdc0000, 0xff8700, 0x005500, 0xdc0000, 0x00d2be, 0x000080, 0xff8700, 0x0090ff, 0x005aff];
+// AI roster in 2026 drivers' championship order (after the British GP, round 9/22,
+// July 2026). `performance` scales AI top speed/cornering in cars.js — keep values
+// inside the historical 0.96–1.04 spread or the field spreads out absurdly.
+export const AI_DRIVERS = [
+    { name: "Antonelli", color: 0x00d2be, performance: 1.04 },  // Mercedes, leader
+    { name: "Russell", color: 0x00d2be, performance: 1.03 },    // Mercedes
+    { name: "Hamilton", color: 0xdc0000, performance: 1.03 },   // Ferrari
+    { name: "Leclerc", color: 0xdc0000, performance: 1.02 },    // Ferrari
+    { name: "Norris", color: 0xff8700, performance: 1.01 },     // McLaren
+    { name: "Piastri", color: 0xff8700, performance: 1.00 },    // McLaren
+    { name: "Verstappen", color: 0x000080, performance: 1.00 }, // Red Bull
+    { name: "Hadjar", color: 0x000080, performance: 0.99 },     // Red Bull
+    { name: "Gasly", color: 0x0090ff, performance: 0.98 },      // Alpine
+    { name: "Lawson", color: 0x6692ff, performance: 0.97 },     // Racing Bulls
+    { name: "Bearman", color: 0xb6babd, performance: 0.96 }     // Haas
+];
 
 export const ZOOM_LEVELS = [ { y: 60, dist: 40 }, { y: 120, dist: 80 }, { y: 200, dist: 140 } ];
 
