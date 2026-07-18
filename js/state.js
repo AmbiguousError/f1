@@ -39,7 +39,7 @@ export const state = {
 export const cfg = {
     seed: "MONZA", laps: 5, time: "day", roadWidth: 18, trackRes: 800,
     difficulty: 'medium', opponents: 6, weather: 'dry', qualifying: false, carClass: 'f1',
-    controlStyle: 'manual'
+    controlStyle: 'manual', startCompound: 1, noTyreWear: false
 };
 
 export const season = { active: false, currentRaceIdx: 0, totalRaces: 3, seeds: [], drivers: [], currentGrid: [] };

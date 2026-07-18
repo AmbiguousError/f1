@@ -15,6 +15,7 @@ window.addEventListener('init-game', (e) => {
     cfg.time = d.time; cfg.laps = d.laps; cfg.difficulty = d.difficulty; cfg.opponents = d.opponents;
     cfg.weather = d.weather; cfg.qualifying = d.qualifying; cfg.carClass = d.carClass; state.zoomLevel = d.zoom;
     cfg.controlStyle = d.controlStyle || 'manual';
+    cfg.startCompound = (d.startCompound === undefined) ? 1 : d.startCompound; cfg.noTyreWear = !!d.noTyreWear;
     season.drivers = []; season.drivers.push({ name: "Player", color: 0xdc0000, points: 0, isPlayer: true, lastLapTime: 0 });
     const aiCount = cfg.opponents - 1;
     for (let i = 0; i < aiCount; i++) {
@@ -59,7 +60,7 @@ function resetUI() { document.getElementById('finish-screen').style.display = 'n
 function init() {
     state.rng = createRNG(cfg.seed); state.currentLap = 1; state.startTime = 0; state.raceStartTime = 0; state.bestTime = Infinity; state.nextCheckpoint = 1;
     state.skidmarks = []; state.trackPoints = []; state.checkpoints = []; state.visualWheels = []; state.sandTraps = []; state.aiCars = []; state.particles = [];
-    state.tyreLife = 100.0; state.tyreCompoundIdx = 1; state.nextTyreCompoundIdx = 1; state.pitBoxPosition = null; state.pitPhase = 'none'; state.pitTimer = 0; state.playerTyreStripes = [];
+    state.tyreLife = 100.0; state.tyreCompoundIdx = cfg.startCompound; state.nextTyreCompoundIdx = cfg.startCompound; state.pitBoxPosition = null; state.pitPhase = 'none'; state.pitTimer = 0; state.playerTyreStripes = [];
 
     setupGraphics(); setupPhysics(); generateCircuit(); generateScenery(); setupMinimap(); setupSkidmarkPool();
 
@@ -92,11 +93,14 @@ function init() {
     document.getElementById('lap-val').innerText = state.sessionType === 'qualifying' ? "QUALIFYING" : `1/${state.totalLaps}`;
     document.getElementById('tyre-val').innerText = "100%"; document.getElementById('tyre-val').style.color = "#2ecc71";
     updateStrategyUI();
+    const stratSection = document.getElementById('strat-section');
+    if (stratSection) stratSection.style.display = cfg.noTyreWear ? 'none' : '';
     const badgeEl = document.getElementById('compound-badge');
     if (badgeEl) {
-        badgeEl.innerText = 'M';
-        badgeEl.style.backgroundColor = '#f1c40f';
-        badgeEl.style.color = '#000';
+        badgeEl.innerText = TYRE_COMPOUNDS[state.tyreCompoundIdx].label;
+        if (state.tyreCompoundIdx === 0) { badgeEl.style.backgroundColor = '#eb2f06'; badgeEl.style.color = '#fff'; }
+        else if (state.tyreCompoundIdx === 1) { badgeEl.style.backgroundColor = '#f1c40f'; badgeEl.style.color = '#000'; }
+        else { badgeEl.style.backgroundColor = '#f5f6fa'; badgeEl.style.color = '#000'; }
     }
     document.getElementById('pit-msg').style.display = 'none';
 
@@ -399,7 +403,7 @@ function animate() {
             const baseWear = (speed * 0.00015) + (Math.abs(state.currentSteer) * speed * 0.0006);
             const brakingWear = (inputs.brake && speed > 10) ? (speed * 0.0004) : 0;
             const wearRate = (baseWear + brakingWear) * compound.wear * surfaceMultiplier;
-            state.tyreLife -= wearRate;
+            if (!cfg.noTyreWear) state.tyreLife -= wearRate;
             if (state.tyreLife < 0) state.tyreLife = 0;
 
             const tyreEl = document.getElementById('tyre-val');

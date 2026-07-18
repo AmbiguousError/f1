@@ -154,7 +154,7 @@ export function updateLogic() {
         const lookAheadIdx = (cIdx + lookAheadVal) % state.trackPoints.length;
 
         // AI Pit Strategy Decision
-        if (state.raceState === 'racing' && !ai.finished && !ai.inPitLane && ai.tyreLife < ai.pitThreshold && (state.totalLaps - ai.lap) >= 1) {
+        if (state.raceState === 'racing' && !cfg.noTyreWear && !ai.finished && !ai.inPitLane && ai.tyreLife < ai.pitThreshold && (state.totalLaps - ai.lap) >= 1) {
             ai.wantsToPit = true;
         }
 
@@ -234,7 +234,7 @@ export function updateLogic() {
         ai.vehicle.setSteeringValue(steerVal, 1);
 
         // AI Tyre Wear
-        if (state.raceState === 'racing' && !ai.finished && !ai.isPitting) {
+        if (state.raceState === 'racing' && !cfg.noTyreWear && !ai.finished && !ai.isPitting) {
             const aiSpeed = speed;
             let aiOnSurface = onSurface;
             let aiSurfaceMultiplier = 1.0;
