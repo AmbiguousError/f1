@@ -75,8 +75,10 @@ export function generateCircuit() {
     // Starting Grid Paint
     const gridSlotGroup = new THREE.Group(); const gridGeo = new THREE.BoxGeometry(2.5, 0.02, 5.0);
     const gridMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+    // Must match the spawn formula in main.js init() or painted slots drift from the cars.
+    const slotSpacing = Math.max(0.5, state.trackPoints[0].distanceTo(state.trackPoints[1]));
     for (let i = 0; i < 12; i++) {
-        const distBack = (i + 1) * 20; let idx = (cfg.trackRes + 0 - distBack) % cfg.trackRes; if (idx < 0) idx += cfg.trackRes;
+        const distBack = Math.max(2, Math.round((8 + i * 7) / slotSpacing)); let idx = (cfg.trackRes + 0 - distBack) % cfg.trackRes; if (idx < 0) idx += cfg.trackRes;
         const pSlot = state.trackPoints[idx]; const pNext = state.trackPoints[(idx + 1) % cfg.trackRes];
 
         const tanSlot = new THREE.Vector3().subVectors(pNext, pSlot).normalize();

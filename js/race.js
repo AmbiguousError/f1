@@ -108,7 +108,13 @@ export function completeLap() { const now = Date.now(); if (now - state.startTim
 export function updateLogic() {
     const p = state.chassisBody.position; const targetCP = state.checkpoints[state.nextCheckpoint]; const dx = p.x - targetCP.x; const dy = p.y - targetCP.y; const dz = p.z - targetCP.z;
     if (dx * dx + dy * dy + dz * dz < 1600) { // Optimized Math.sqrt away
-        if (state.nextCheckpoint === 0) { completeLap(); state.nextCheckpoint = 1; }
+        // Checkpoint 0 is the start/finish line under the arch. The 40-unit radius alone
+        // would complete the lap well before the line, so additionally require the car to
+        // be past the line's plane (dot of offset-from-line with the track tangent >= 0).
+        if (state.nextCheckpoint === 0) {
+            const t0 = state.trackPoints[0], t1 = state.trackPoints[1];
+            if ((p.x - t0.x) * (t1.x - t0.x) + (p.z - t0.z) * (t1.z - t0.z) >= 0) { completeLap(); state.nextCheckpoint = 1; }
+        }
         else { const flash = document.getElementById('lap-flash'); if (state.sessionType !== 'qualifying') { if (state.nextCheckpoint === 1) flash.innerText = "SECTOR 1"; else if (state.nextCheckpoint === 2) flash.innerText = "SECTOR 2"; else flash.innerText = "SECTOR"; flash.style.display = 'block'; setTimeout(() => flash.style.display = 'none', 1000); } state.nextCheckpoint++; if (state.nextCheckpoint >= state.checkpoints.length) state.nextCheckpoint = 0; }
     }
 
@@ -139,7 +145,8 @@ export function updateLogic() {
         if (scratch.flipUpVec.y < 0.2) { ai.flipTimer += 1 / 60; if (ai.flipTimer > 2.0) { teleportToTrack(ai.body); ai.flipTimer = 0; return; } } else { ai.flipTimer = 0; }
 
         const distToNextCP = (pos.x - state.checkpoints[ai.nextCp].x) ** 2 + (pos.z - state.checkpoints[ai.nextCp].z) ** 2;
-        if (distToNextCP < 1600) { if (ai.nextCp === 0) { ai.lap++; ai.nextCp = 1; if (ai.lap > state.totalLaps && !ai.finished) { ai.finished = true; ai.finishTime = Date.now() - state.raceStartTime; } } else { ai.nextCp++; if (ai.nextCp >= state.checkpoints.length) ai.nextCp = 0; } }
+        // Same past-the-line plane gate as the player's checkpoint 0 (see updateLogic top).
+        if (distToNextCP < 1600) { if (ai.nextCp === 0) { const t0 = state.trackPoints[0], t1 = state.trackPoints[1]; if ((pos.x - t0.x) * (t1.x - t0.x) + (pos.z - t0.z) * (t1.z - t0.z) >= 0) { ai.lap++; ai.nextCp = 1; if (ai.lap > state.totalLaps && !ai.finished) { ai.finished = true; ai.finishTime = Date.now() - state.raceStartTime; } } } else { ai.nextCp++; if (ai.nextCp >= state.checkpoints.length) ai.nextCp = 0; } }
 
         let lookAheadVal = ai.skill.lookAhead;
         if (onSurface !== 'tarmac') { lookAheadVal = 5; }
