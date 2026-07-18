@@ -23,7 +23,7 @@ export const state = {
 
     aiCars: [],
 
-    currentSteer: 0, resetTimer: 0, inSand: false, playerFlipTimer: 0,
+    currentSteer: 0, resetTimer: 0, inSand: false, playerFlipTimer: 0, autoBrakeTime: 0,
 
     audioCtx: null, engineOsc: null, turboOsc: null, skidOsc: null,
     engineGain: null, turboGain: null, skidGain: null, audioMuted: false,

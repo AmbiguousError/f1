@@ -338,13 +338,21 @@ function animate() {
                 state.chassisBody.vectorToLocalFrame(state.chassisBody.velocity, scratch.localVel);
                 const movingForward = scratch.localVel.z > 0.5;
                 if (inputs.brake && movingForward) {
-                    brakeVal = 150; force = 0;
+                    state.autoBrakeTime += 1 / 60;
+                    const durationRamp = Math.min(1.0, state.autoBrakeTime / 0.6);
+                    const baseBrake = 30 + 120 * durationRamp;
+                    const steerReduction = Math.max(0.4, 1.0 - Math.abs(state.currentSteer) * 0.6);
+                    const speedReduction = kph < 60 ? Math.max(0.3, kph / 60) : 1.0;
+                    brakeVal = baseBrake * steerReduction * speedReduction;
+                    force = 0;
                 } else if (inputs.brake) {
+                    state.autoBrakeTime = 0;
                     let speedRatio = Math.min(1.0, kph / reverseTopSpeedKph);
                     let torqueMultiplier = 1.0 - Math.pow(speedRatio, 2);
                     let launchRamp = Math.min(1.0, 0.4 + kph / 20);
                     force = baseReversePower * Math.max(0.05, torqueMultiplier) * launchRamp;
                 } else {
+                    state.autoBrakeTime = 0;
                     let speedRatio = Math.min(1.0, kph / topSpeedKph);
                     let torqueMultiplier = 1.0 - Math.pow(speedRatio, 2);
                     let launchRamp = Math.min(1.0, 0.4 + kph / 20);
