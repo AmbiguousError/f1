@@ -237,7 +237,7 @@ export function updateLogic() {
 
         const aiCompound = TYRE_COMPOUNDS[ai.compoundIdx];
         const aiWearFactor = 0.4 + 0.6 * Math.pow(ai.tyreLife / 100, 1.5);
-        const gripFactor = aiWearFactor * aiCompound.grip;
+        const gripFactor = aiWearFactor * aiCompound.grip * state.surfaceGrip;
 
         let topSpeed = ai.finished ? 100 : ai.skill.topSpeed;
         let desiredSpeed = topSpeed / 3.6;
@@ -361,6 +361,7 @@ export function updateLogic() {
         if (onSurface === 'sand') { force *= 0.7; ai.body.velocity.scale(0.98, ai.body.velocity); spawnDust(pos, 0xd2b48c); }
         else if (onSurface === 'grass') { force *= 0.7; ai.body.velocity.scale(0.98, ai.body.velocity); if (speed > 5) spawnDust(pos, 0x2e8b57); }
         if (cfg.weather === 'wet' && onSurface === 'tarmac' && speed > 20) { if (Math.random() > 0.7) spawnDust(pos, 0xffffff); }
+        if (state.surfaceDust !== null && onSurface === 'tarmac' && speed > 15) { if (Math.random() > 0.7) spawnDust(pos, state.surfaceDust); }
 
         let isBraking = brakeVal > 0;
         if (ai.tailMat) ai.tailMat.color.setHex(isBraking ? 0xff0000 : 0x440000);
@@ -370,7 +371,7 @@ export function updateLogic() {
         const aiCurrentGrip = aiBaseGrip * gripFactor;
         ai.vehicle.wheelInfos.forEach(w => w.frictionSlip = aiCurrentGrip);
 
-        ai.vehicle.applyEngineForce(force, 2); ai.vehicle.applyEngineForce(force, 3);
+        ai.vehicle.applyEngineForce(force * state.surfaceForce, 2); ai.vehicle.applyEngineForce(force * state.surfaceForce, 3);
         ai.vehicle.setBrake(brakeVal, 0); ai.vehicle.setBrake(brakeVal, 1); ai.vehicle.setBrake(brakeVal, 2); ai.vehicle.setBrake(brakeVal, 3);
 
         if (ai.body.userData.mesh) { ai.body.userData.mesh.position.copy(ai.body.position); ai.body.userData.mesh.quaternion.copy(ai.body.quaternion); }

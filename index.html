@@ -99,6 +99,17 @@
             <button class="opt-btn selected" onclick="setControlStyle('manual', this)">MANUAL</button>
             <button class="opt-btn" onclick="setControlStyle('auto', this)">AUTO ACCEL</button>
         </div>
+        <div class="menu-row">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">STYLE</span>
+            <button class="opt-btn selected" onclick="setStyle('f1', this)">F1</button>
+            <button class="opt-btn" onclick="setStyle('rally', this)">RALLY</button>
+        </div>
+        <div class="menu-row" id="row-surface" style="display:none;">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">SURFACE</span>
+            <button class="opt-btn selected" onclick="setSurface('tarmac', this)">TARMAC</button>
+            <button class="opt-btn" onclick="setSurface('snow', this)">SNOW</button>
+            <button class="opt-btn" onclick="setSurface('mud', this)">MUD</button>
+        </div>
         <button id="start-btn" onclick="startGame()">ENTER COCKPIT</button>
         <button id="guide-btn" onclick="showGuide()">HOW TO PLAY</button>
     </div>

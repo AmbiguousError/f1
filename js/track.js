@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { state, cfg } from './state.js';
 import { REAL_TRACKS } from './tracks.js';
+import { RALLY_SURFACES } from './constants.js';
 
 export function generateCircuit() {
     const realTrackKey = (cfg.seed || '').trim().toUpperCase();
@@ -24,13 +25,14 @@ export function generateCircuit() {
     const distFirstLast = state.trackPoints[0].distanceTo(state.trackPoints[state.trackPoints.length - 1]); if (distFirstLast < 1.0) state.trackPoints.pop();
     state.checkpoints = [state.trackPoints[0], state.trackPoints[Math.floor(state.trackPoints.length / 3)], state.trackPoints[Math.floor(state.trackPoints.length * 2 / 3)]];
 
+    const surf = (cfg.raceStyle === 'rally') ? RALLY_SURFACES[cfg.surface] : RALLY_SURFACES.tarmac;
     const grassGeo = new THREE.PlaneGeometry(1200, 1200); grassGeo.rotateX(-Math.PI / 2);
-    const grassCol = cfg.time === 'sunset' ? 0x2e3b28 : 0x2e8b57; const grassMat = new THREE.MeshStandardMaterial({ color: grassCol, roughness: 1.0, side: THREE.DoubleSide });
+    const grassCol = (cfg.raceStyle === 'rally' && cfg.surface !== 'tarmac') ? surf.ground : (cfg.time === 'sunset' ? 0x2e3b28 : 0x2e8b57); const grassMat = new THREE.MeshStandardMaterial({ color: grassCol, roughness: 1.0, side: THREE.DoubleSide });
     const grass = new THREE.Mesh(grassGeo, grassMat); grass.position.y = -0.1; grass.receiveShadow = true; state.scene.add(grass);
 
     const roadWidth = cfg.roadWidth; const trackGeo = new THREE.BufferGeometry();
-    const vertices = []; const colors = []; const indices = []; const cAsphalt = new THREE.Color(0x555555); const cKerbRed = new THREE.Color(0xcc0000); const cKerbWhite = new THREE.Color(0xffffff); const cLine = new THREE.Color(0xffffff);
-    const len = state.trackPoints.length; const sandMat = new THREE.MeshStandardMaterial({ color: 0xd2b48c, roughness: 1.0 }); const sandTrapsMesh = new THREE.Group();
+    const vertices = []; const colors = []; const indices = []; const cAsphalt = new THREE.Color(surf.track); const cKerbRed = new THREE.Color(0xcc0000); const cKerbWhite = new THREE.Color(0xffffff); const cLine = new THREE.Color(0xffffff);
+    const len = state.trackPoints.length; const sandMat = new THREE.MeshStandardMaterial({ color: surf.trap, roughness: 1.0 }); const sandTrapsMesh = new THREE.Group();
 
     for (let i = 0; i < len; i++) {
         const p1 = state.trackPoints[i]; const p2 = state.trackPoints[(i + 1) % len]; const p3 = state.trackPoints[(i + 2) % len];
@@ -97,7 +99,9 @@ export function generateCircuit() {
     }
     state.scene.add(gridSlotGroup);
 
-    generatePitLane();
+    // Rally circuits have no pit lane (no tyre stops — no-wear is forced); everything
+    // that touches pit state already null-checks state.pitBoxPosition.
+    if (cfg.raceStyle !== 'rally') generatePitLane();
 }
 
 export function generatePitLane() {

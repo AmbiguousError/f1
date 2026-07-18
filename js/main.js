@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { state, cfg, season, inputs, scratch, globalGeometries, globalMaterials } from './state.js';
-import { AI_DRIVERS, ZOOM_LEVELS, TYRE_COMPOUNDS, TYRE_COLORS } from './constants.js';
+import { AI_DRIVERS, ZOOM_LEVELS, TYRE_COMPOUNDS, TYRE_COLORS, RALLY_SURFACES } from './constants.js';
 import { createRNG, formatTime } from './utils.js';
 import { setupAudio, updateAudio } from './audio.js';
 import { generateCircuit, generateScenery, setupMinimap, updateMinimap, findClosestTrackPoint, getPitLaneOffset } from './track.js';
@@ -20,6 +20,9 @@ window.addEventListener('init-game', (e) => {
     // finish detection and season logic all compare against that literal).
     // Name goes into results innerHTML, so keep it to plain characters.
     cfg.driverName = (d.driverName || '').replace(/[^A-Za-z0-9 _.\-]/g, '').trim().substring(0, 12) || 'Player'; cfg.teamColor = d.teamColor || 0xdc0000;
+    cfg.raceStyle = d.raceStyle || 'f1'; cfg.surface = cfg.raceStyle === 'rally' ? (d.surface || 'tarmac') : 'tarmac';
+    // Rally has no pit lane, so tyre stops are impossible — force no-wear.
+    if (cfg.raceStyle === 'rally') cfg.noTyreWear = true;
     season.drivers = []; season.drivers.push({ name: "Player", color: cfg.teamColor, points: 0, isPlayer: true, lastLapTime: 0 });
     const aiCount = cfg.opponents - 1;
     for (let i = 0; i < aiCount; i++) {
@@ -62,6 +65,8 @@ function init() {
     state.rng = createRNG(cfg.seed); state.currentLap = 1; state.startTime = 0; state.raceStartTime = 0; state.bestTime = Infinity; state.nextCheckpoint = 1;
     state.skidmarks = []; state.trackPoints = []; state.checkpoints = []; state.visualWheels = []; state.sandTraps = []; state.aiCars = []; state.particles = [];
     state.tyreLife = 100.0; state.tyreCompoundIdx = cfg.startCompound; state.nextTyreCompoundIdx = cfg.startCompound; state.pitBoxPosition = null; state.pitPhase = 'none'; state.pitTimer = 0; state.playerTyreStripes = [];
+    const surf = (cfg.raceStyle === 'rally') ? RALLY_SURFACES[cfg.surface] : RALLY_SURFACES.tarmac;
+    state.surfaceGrip = surf.grip; state.surfaceForce = surf.force; state.surfaceDust = surf.dust;
 
     setupGraphics(); setupPhysics(); generateCircuit(); generateScenery(); setupMinimap(); setupSkidmarkPool();
 
@@ -428,17 +433,18 @@ function animate() {
         const compound = TYRE_COMPOUNDS[state.tyreCompoundIdx];
         const baseGrip = cfg.weather === 'wet' ? 2.0 : 4.8;
         const wearFactor = 0.4 + 0.6 * Math.pow(state.tyreLife / 100, 1.5);
-        const currentGrip = baseGrip * compound.grip * wearFactor;
+        const currentGrip = baseGrip * compound.grip * wearFactor * state.surfaceGrip;
         state.vehicle.wheelInfos.forEach(w => w.frictionSlip = currentGrip);
 
         // Pit lane messaging/tyre-change/state transitions are now handled entirely by the pit
         // autopilot block above (state.pitPhase); there is no more separate "did the player stop
         // correctly in the box" check here.
 
-        state.vehicle.applyEngineForce(force, 2); state.vehicle.applyEngineForce(force, 3);
+        state.vehicle.applyEngineForce(force * state.surfaceForce, 2); state.vehicle.applyEngineForce(force * state.surfaceForce, 3);
         state.vehicle.setBrake(brakeVal, 0); state.vehicle.setBrake(brakeVal, 1); state.vehicle.setBrake(brakeVal, 2); state.vehicle.setBrake(brakeVal, 3);
         if ((inputs.brake && speed > 5) || Math.abs(state.currentSteer) > 0.4 && speed > 15) { spawnDust(state.visualWheels[2].position, 0xaaaaaa); spawnDust(state.visualWheels[3].position, 0xaaaaaa); }
         if (cfg.weather === 'wet' && onSurface === 'tarmac' && speed > 20) { if (Math.random() > 0.5) { spawnDust(state.visualWheels[2].position, 0xffffff); spawnDust(state.visualWheels[3].position, 0xffffff); } }
+        if (state.surfaceDust !== null && onSurface === 'tarmac' && speed > 15) { if (Math.random() > 0.5) { spawnDust(state.visualWheels[2].position, state.surfaceDust); spawnDust(state.visualWheels[3].position, state.surfaceDust); } }
 
         // Flat baseline term keeps some downward pressure/grip at launch, where aero
         // downforce (speed^2 term) would otherwise be zero right when full torque hits.

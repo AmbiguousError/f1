@@ -33,13 +33,16 @@ export const state = {
     zoomLevel: 2,
 
     playerLastClosestIdx: 0, playerGhostMats: [],
+    // Rally surface modifiers, set in init() from RALLY_SURFACES (1/1/null in F1 style).
+    surfaceGrip: 1.0, surfaceForce: 1.0, surfaceDust: null,
     inputsInitialized: false,
 };
 
 export const cfg = {
     seed: "MONZA", laps: 5, time: "day", roadWidth: 18, trackRes: 800,
     difficulty: 'medium', opponents: 6, weather: 'dry', qualifying: false, carClass: 'f1',
-    controlStyle: 'manual', startCompound: 1, noTyreWear: false, driverName: 'Player', teamColor: 0xdc0000
+    controlStyle: 'manual', startCompound: 1, noTyreWear: false, driverName: 'Player', teamColor: 0xdc0000,
+    raceStyle: 'f1', surface: 'tarmac'
 };
 
 export const season = { active: false, currentRaceIdx: 0, totalRaces: 3, seeds: [], drivers: [], currentGrid: [] };

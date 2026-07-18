@@ -29,6 +29,14 @@ export const POINTS_SYSTEM = [25, 18, 15, 12, 10, 8];
 
 export const MAX_SKIDMARKS = 200;
 
+// Rally mode surfaces: whole-track grip/engine multipliers plus the visual palette.
+// Grip multiplies wheel frictionSlip (and AI cornering speed); force scales engine power.
+export const RALLY_SURFACES = {
+    tarmac: { grip: 1.0, force: 1.0, track: 0x555555, ground: 0x2e8b57, trap: 0xd2b48c, dust: null },
+    snow: { grip: 0.55, force: 0.85, track: 0xdde4e8, ground: 0xe8eef2, trap: 0xcfd8dc, dust: 0xffffff },
+    mud: { grip: 0.75, force: 0.9, track: 0x6b4a2b, ground: 0x5d5233, trap: 0x4e3b24, dust: 0x8a6a3f }
+};
+
 // Player-selectable teams: display name + car body color. Swatches in index.html's
 // TEAM menu row must stay in sync with these colors.
 export const TEAMS = [
