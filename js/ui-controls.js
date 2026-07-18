@@ -10,7 +10,7 @@ window.setControlStyle = function(style, el) { selectedControlStyle = style; upd
 window.setStartTyre = function(idx, el) { if (idx === -1) { selectedNoWear = true; selectedStartTyre = 1; } else { selectedNoWear = false; selectedStartTyre = idx; } updateSelection(el); };
 window.setStyle = function(style, el) { selectedStyle = style; document.getElementById('row-surface').style.display = style === 'rally' ? 'flex' : 'none'; updateSelection(el); };
 window.setSurface = function(surface, el) { selectedSurface = surface; updateSelection(el); };
-window.setTeam = function(colorHex, el) { selectedTeamColor = colorHex; if (el) { el.parentNode.querySelectorAll('.team-btn').forEach(b => b.classList.remove('selected')); el.classList.add('selected'); } };
+window.setTeam = function(colorHex, el, name) { selectedTeamColor = colorHex; if (el) { el.parentNode.querySelectorAll('.team-btn').forEach(b => b.classList.remove('selected')); el.classList.add('selected'); } const display = document.getElementById('team-name-display'); if (display && name) { display.innerText = name; } };
 function updateSelection(el) { if (!el) return; const btns = el.parentNode.querySelectorAll('.opt-btn'); btns.forEach(b => b.classList.remove('selected')); el.classList.add('selected'); }
 
 window.startGame = function() {
