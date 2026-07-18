@@ -10,8 +10,12 @@ export function resetCar() { teleportToTrack(state.chassisBody); document.getEle
 export function getRaceStandings() {
     const getTotalDistCached = (closestIdx, lap, nextCp) => {
         let dist = ((lap - 1) * state.trackPoints.length) + closestIdx;
-        if (nextCp === 1 && closestIdx < state.trackPoints.length * 0.25) {
-            dist += state.trackPoints.length;
+        // Lap counters increment ~40 units BEFORE the line (checkpoint-0 trigger radius),
+        // while closestIdx only wraps to 0 AT the line. In that gap — and for cars still
+        // sitting behind the line at the start (nextCp starts at 1, lap 1) — a high
+        // closestIdx would count as nearly a full extra lap, so pull it back by one lap.
+        if (nextCp === 1 && closestIdx > state.trackPoints.length * 0.75) {
+            dist -= state.trackPoints.length;
         }
         return dist;
     };
