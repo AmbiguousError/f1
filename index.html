@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>F1 Circuit Gen - Stadium & Illumination</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="start-screen">
+        <h1 style="color:white; font-size: 48px; margin:0 0 10px 0; font-style: italic; letter-spacing: -2px;">FORMULA <span style="color:#e74c3c">GEN</span></h1>
+
+        <div class="menu-row">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">MODE</span>
+            <button class="opt-btn selected" id="mode-single" onclick="setMode('single', this)">SINGLE GP</button>
+            <button class="opt-btn" id="mode-season" onclick="setMode('season', this)">SEASON</button>
+        </div>
+        <div class="menu-row">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">CLASS</span>
+            <button class="opt-btn selected" id="class-f1" onclick="setClass('f1', this)">F1</button>
+            <button class="opt-btn" id="class-mini" onclick="setClass('mini', this)">MINI</button>
+        </div>
+        <div id="row-seed" class="menu-row" style="flex-direction:column; gap:4px;">
+            <div class="menu-row">
+                <span style="color:#aaa; font-size: 12px; letter-spacing: 2px;">CIRCUIT SEED</span>
+                <input type="text" id="seed-input" value="MONZA" maxlength="12">
+                <button class="opt-btn" onclick="randomizeSeed()">RANDOM</button>
+            </div>
+            <div style="color:#666; font-size: 10px; letter-spacing: 1px; text-align:center; max-width: 360px;">REAL CIRCUITS: MONZA &middot; SPA &middot; MONACO &middot; SILVERSTONE &middot; INTERLAGOS &middot; SUZUKA &middot; COTA &middot; ZANDVOORT &middot; BAKU &middot; SINGAPORE</div>
+        </div>
+        <div id="row-races" class="menu-row" style="display:none;">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">RACES</span>
+            <button class="opt-btn selected" onclick="setRaces(3, this)">3</button>
+            <button class="opt-btn" onclick="setRaces(5, this)">5</button>
+            <button class="opt-btn" onclick="setRaces(10, this)">10</button>
+        </div>
+        <div class="menu-row">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">CARS</span>
+            <button class="opt-btn selected" onclick="setCars(6, this)">6</button>
+            <button class="opt-btn" onclick="setCars(10, this)">10</button>
+            <button class="opt-btn" onclick="setCars(12, this)">12</button>
+        </div>
+        <div class="menu-row">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">AI</span>
+            <button class="opt-btn" onclick="setDifficulty('easy', this)">EASY</button>
+            <button class="opt-btn selected" onclick="setDifficulty('medium', this)">MED</button>
+            <button class="opt-btn" onclick="setDifficulty('hard', this)">HARD</button>
+        </div>
+        <div class="menu-row">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">ZOOM</span>
+            <button class="opt-btn" onclick="setZoom(0, this)">CLOSE</button>
+            <button class="opt-btn" onclick="setZoom(1, this)">MID</button>
+            <button class="opt-btn selected" onclick="setZoom(2, this)">FAR</button>
+        </div>
+        <div class="menu-row">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">LAPS</span>
+            <button class="opt-btn selected" onclick="setLaps(3, this)">3</button>
+            <button class="opt-btn" onclick="setLaps(5, this)">5</button>
+            <button class="opt-btn" onclick="setLaps(10, this)">10</button>
+        </div>
+        <div class="menu-row">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">TIME</span>
+            <button class="opt-btn selected" onclick="setTime('day', this)">DAY</button>
+            <button class="opt-btn" onclick="setTime('sunset', this)">SUNSET</button>
+        </div>
+        <div class="menu-row">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">WEATHER</span>
+            <button class="opt-btn selected" onclick="setWeather('dry', this)">DRY</button>
+            <button class="opt-btn" onclick="setWeather('wet', this)">WET</button>
+        </div>
+        <div class="menu-row">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">QUALIFY</span>
+            <button class="opt-btn" onclick="setQualifying(true, this)">ON</button>
+            <button class="opt-btn selected" onclick="setQualifying(false, this)">OFF</button>
+        </div>
+        <div class="menu-row">
+            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">CONTROLS</span>
+            <button class="opt-btn selected" onclick="setControlStyle('manual', this)">MANUAL</button>
+            <button class="opt-btn" onclick="setControlStyle('auto', this)">AUTO ACCEL</button>
+        </div>
+        <button id="start-btn" onclick="startGame()">ENTER COCKPIT</button>
+        <button id="guide-btn" onclick="showGuide()">HOW TO PLAY</button>
+    </div>
+
+    <div id="guide-screen">
+        <h1>RACE MANUAL</h1>
+        <div class="guide-content">
+            <div class="guide-section">
+                <h3>CONTROLS (MANUAL)</h3>
+                <p><span class="key">W</span> / <span class="key">↑</span> ACCELERATE</p>
+                <p><span class="key">SPC</span> BRAKE / STOP</p>
+                <p><span class="key">S</span> / <span class="key">↓</span> REVERSE</p>
+                <p><span class="key">A</span> / <span class="key">←</span> STEER LEFT</p>
+                <p><span class="key">D</span> / <span class="key">→</span> STEER RIGHT</p>
+                <p><span class="key">SPC</span> (HOLD) RESET</p>
+                <p><span class="key">ESC</span> PAUSE</p>
+            </div>
+            <div class="guide-section">
+                <h3>CONTROLS (AUTO ACCEL)</h3>
+                <p>Car drives forward on its own.</p>
+                <p><span class="key">SPC</span> BRAKE, hold at a stop to REVERSE</p>
+                <p><span class="key">A</span> / <span class="key">←</span> STEER LEFT</p>
+                <p><span class="key">D</span> / <span class="key">→</span> STEER RIGHT</p>
+                <p>Select this mode from CONTROLS on the start screen.</p>
+            </div>
+            <div class="guide-section">
+                <h3>GAME MODES</h3>
+                <p><strong>SINGLE GP:</strong> Race on a specific seed.</p>
+                <p><strong>SEASON:</strong> Compete in a multi-race championship.</p>
+                <p><strong>QUALIFYING:</strong> Optional flying lap to set grid position.</p>
+                <p><strong>PIT STOPS:</strong> Stop in the box on the start straight to change tyres.</p>
+            </div>
+        </div>
+        <button class="menu-btn" onclick="hideGuide()">CLOSE</button>
+    </div>
+
+    <div id="finish-screen">
+        <h1 id="finish-title">FINISHED</h1>
+        <div id="finish-subtitle" style="font-size: 14px; color: #aaa; margin-bottom: 20px;">RACE 1/3 COMPLETE</div>
+        <div class="results-container">
+            <div class="result-col">
+                <div class="result-header" id="res-header-1">RACE RESULTS</div>
+                <div id="race-results-list"></div>
+            </div>
+            <div class="result-col" id="season-col" style="display:none;">
+                <div class="result-header">SEASON STANDINGS</div>
+                <div id="season-results-list"></div>
+            </div>
+        </div>
+        <button class="menu-btn" style="margin-top:30px" id="next-btn" onclick="handleNext()">NEXT RACE</button>
+    </div>
+
+    <div id="pause-menu">
+        <h1>PAUSED</h1>
+        <button class="menu-btn" onclick="togglePause()">RESUME RACE</button>
+        <button class="menu-btn" onclick="quitToMenu()">RETIRE</button>
+    </div>
+
+    <div id="ui-layer">
+        <div id="countdown"></div>
+        <div id="pit-msg"></div>
+        <div id="reset-bar"><div id="reset-progress"></div></div>
+
+        <div id="hud">
+            <div class="hud-section"><div class="stat-group"><div style="display:flex; align-items:baseline;"><span id="gear-val">N</span><div id="speed-container"><span id="speed-val">0</span><span class="speed-unit">KM/H</span></div></div></div></div>
+            <div class="separator"></div>
+            <div class="hud-section"><div class="stat-group"><div class="info-row"><span class="info-label">POS</span> <span id="pos-val">6/6</span></div><div class="info-row"><span class="info-label">LAP</span> <span id="lap-val">1/3</span></div><div class="info-row"><span class="info-label">TYRES</span> <span id="tyre-val">100%</span><span id="compound-badge" style="background: #f1c40f; color: black; padding: 1px 5px; border-radius: 3px; font-weight: 900; margin-left: 5px; font-size: 11px; font-family: sans-serif; line-height: 1;">M</span></div></div></div>
+            <div class="separator"></div>
+            <div class="hud-section" style="pointer-events: auto;"><div class="stat-group"><span class="stat-label">NEXT TYRE</span><div style="display: flex; gap: 4px; margin-top: 3px;"><button id="strat-s" class="strat-btn" onclick="selectNextCompound(0)">S</button><button id="strat-m" class="strat-btn selected-m" onclick="selectNextCompound(1)">M</button><button id="strat-h" class="strat-btn" onclick="selectNextCompound(2)">H</button></div></div></div>
+            <div class="separator"></div>
+            <div class="hud-section" style="flex-grow:1; justify-content: flex-end;"><div class="stat-group" style="align-items: flex-end;"><div class="info-row"><span class="info-label">LAP T.</span> <span id="time-val">0:00.00</span></div><div class="info-row"><span class="info-label">RACE T.</span> <span id="total-time-val" style="font-family:monospace">0:00.00</span></div></div></div>
+            <div class="hud-section"><div id="minimap-wrapper"><canvas id="minimap" width="60" height="60"></canvas></div></div>
+            <div id="lap-flash">SECTOR 1</div>
+        </div>
+
+        <div id="mute-btn" class="hud-btn" onclick="toggleMute()">🔊</div>
+        <div id="cam-btn" class="hud-btn" onclick="toggleCam()">📷</div>
+
+        <div class="controls">
+            <div class="touch-btn" style="left:20px" id="btn-l">◄</div>
+            <div class="touch-btn" style="left:100px" id="btn-r">►</div>
+            <div class="touch-btn" style="right:100px; bottom:20px" id="btn-b">BRAKE</div>
+            <div class="touch-btn" style="right:100px; bottom:110px; border-color:#f39c12; color:#f39c12" id="btn-rev">REV</div>
+            <div class="touch-btn" style="right:20px; bottom:40px; border-color:#2ecc71; color: #2ecc71" id="btn-g">GAS</div>
+        </div>
+    </div>
+
+    <script src="js/ui-controls.js"></script>
+
+    <script type="importmap"> { "imports": { "three": "https://esm.sh/three@0.160.0", "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/", "cannon-es": "https://esm.sh/cannon-es@0.20.0" } } </script>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
