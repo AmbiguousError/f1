@@ -12,6 +12,23 @@ export function resetCar() { teleportToTrack(state.chassisBody); document.getEle
 // display name at the point text is rendered.
 const displayName = (name) => name === "Player" ? cfg.driverName : name;
 
+const PODIUM_MEDALS = ['🏆', '🥈', '🥉'];
+// top3: [{name, color}] in finishing order. Renders as 2-1-3 stepped boxes in team colors.
+function makePodium(title, top3, isChampionship) {
+    const wrap = document.createElement('div');
+    const t = document.createElement('div'); t.className = 'podium-title'; t.innerText = title; wrap.appendChild(t);
+    const pod = document.createElement('div'); pod.className = 'podium' + (isChampionship ? ' champ' : '');
+    [1, 0, 2].forEach(rank => {
+        const d = top3[rank]; if (!d) return;
+        const slot = document.createElement('div'); slot.className = 'podium-slot';
+        const colorHex = '#' + (d.color >>> 0).toString(16).padStart(6, '0');
+        slot.innerHTML = `<div class="podium-medal">${PODIUM_MEDALS[rank]}</div><div class="podium-name">${d.name}</div><div class="podium-step step-${rank + 1}" style="background:${colorHex}">${rank + 1}</div>`;
+        pod.appendChild(slot);
+    });
+    wrap.appendChild(pod);
+    return wrap;
+}
+
 export function getRaceStandings() {
     const getTotalDistCached = (closestIdx, lap, nextCp) => {
         let dist = ((lap - 1) * state.trackPoints.length) + closestIdx;
@@ -56,6 +73,7 @@ export function updateFinishScreenUI(results) {
     // Race results dock to the side so the player car stays visible; qualifying keeps
     // the centered layout (no live action worth watching behind it).
     el.classList.toggle('docked', state.sessionType !== 'qualifying');
+    document.getElementById('podium-area').innerHTML = '';
     if (state.sessionType === 'qualifying') {
         title.innerText = "QUALIFYING COMPLETE"; sub.innerText = "GRID SET FOR RACE"; header.innerText = "STARTING GRID"; nextBtn.innerText = "START RACE"; seasonCol.style.display = 'none';
         const playerTime = results[0].finishTime;
@@ -88,8 +106,10 @@ export function updateFinishScreenUI(results) {
         });
         return;
     }
-    header.innerText = "RACE RESULTS"; results.forEach((r, i) => { const pts = i < POINTS_SYSTEM.length ? POINTS_SYSTEM[i] : 0; season.drivers[r.driverIndex].points += pts; r.pts = pts; }); list.innerHTML = ''; const winnerTime = results[0].finished ? results[0].finishTime : 0; results.forEach((r, i) => { const row = document.createElement('div'); row.className = 'result-row'; let timeStr = ""; if (r.finished) { if (i === 0) { timeStr = formatTime(r.finishTime); } else { const diff = r.finishTime - winnerTime; timeStr = `+${(diff / 1000).toFixed(2)}s`; } } else { timeStr = "--"; } row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(r.name)}</span> <div style="display:flex; gap:10px;"><span class="time-gap">${timeStr}</span><span>+${r.pts} PTS</span></div>`; list.appendChild(row); });
-    if (season.active) { seasonCol.style.display = 'block'; sub.innerText = `RACE ${season.currentRaceIdx + 1} / ${season.totalRaces} COMPLETE`; const standings = [...season.drivers].sort((a, b) => b.points - a.points); seasonList.innerHTML = ''; standings.forEach((d, i) => { const row = document.createElement('div'); row.className = 'result-row'; row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(d.name)}</span> <span>${d.points} PTS</span>`; seasonList.appendChild(row); }); if (season.currentRaceIdx >= season.totalRaces - 1) { title.innerText = "SEASON CHAMPION: " + displayName(standings[0].name).toUpperCase(); nextBtn.innerText = "MAIN MENU"; } else { title.innerText = "RACE FINISHED"; nextBtn.innerText = "START NEXT RACE"; } } else { seasonCol.style.display = 'none'; const pRank = results.findIndex(r => r.name === "Player") + 1; title.innerText = "P" + pRank + " - FINISHED"; sub.innerText = "TIME: " + formatTime(Date.now() - state.raceStartTime); nextBtn.innerText = "MAIN MENU"; }
+    header.innerText = "RACE RESULTS"; results.forEach((r, i) => { const pts = i < POINTS_SYSTEM.length ? POINTS_SYSTEM[i] : 0; season.drivers[r.driverIndex].points += pts; r.pts = pts; });
+    document.getElementById('podium-area').appendChild(makePodium('RACE PODIUM', results.slice(0, 3).map(r => ({ name: displayName(r.name), color: season.drivers[r.driverIndex].color }))));
+    list.innerHTML = ''; const winnerTime = results[0].finished ? results[0].finishTime : 0; results.forEach((r, i) => { const row = document.createElement('div'); row.className = 'result-row'; let timeStr = ""; if (r.finished) { if (i === 0) { timeStr = formatTime(r.finishTime); } else { const diff = r.finishTime - winnerTime; timeStr = `+${(diff / 1000).toFixed(2)}s`; } } else { timeStr = "--"; } row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(r.name)}</span> <div style="display:flex; gap:10px;"><span class="time-gap">${timeStr}</span><span>+${r.pts} PTS</span></div>`; list.appendChild(row); });
+    if (season.active) { seasonCol.style.display = 'block'; sub.innerText = `RACE ${season.currentRaceIdx + 1} / ${season.totalRaces} COMPLETE`; const standings = [...season.drivers].sort((a, b) => b.points - a.points); seasonList.innerHTML = ''; standings.forEach((d, i) => { const row = document.createElement('div'); row.className = 'result-row'; row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(d.name)}</span> <span>${d.points} PTS</span>`; seasonList.appendChild(row); }); if (season.currentRaceIdx >= season.totalRaces - 1) { title.innerText = "SEASON CHAMPION: " + displayName(standings[0].name).toUpperCase(); nextBtn.innerText = "MAIN MENU"; document.getElementById('podium-area').appendChild(makePodium('WORLD CHAMPIONSHIP', standings.slice(0, 3).map(d => ({ name: displayName(d.name), color: d.color })), true)); } else { title.innerText = "RACE FINISHED"; nextBtn.innerText = "START NEXT RACE"; } } else { seasonCol.style.display = 'none'; const pRank = results.findIndex(r => r.name === "Player") + 1; title.innerText = "P" + pRank + " - FINISHED"; sub.innerText = "TIME: " + formatTime(Date.now() - state.raceStartTime); nextBtn.innerText = "MAIN MENU"; }
 }
 
 export function updateStrategyUI() {
