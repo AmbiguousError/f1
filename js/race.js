@@ -372,7 +372,12 @@ export function updateLogic() {
         ai.vehicle.wheelInfos.forEach(w => w.frictionSlip = aiCurrentGrip);
 
         ai.vehicle.applyEngineForce(force * state.surfaceForce, 2); ai.vehicle.applyEngineForce(force * state.surfaceForce, 3);
-        ai.vehicle.setBrake(brakeVal, 0); ai.vehicle.setBrake(brakeVal, 1); ai.vehicle.setBrake(brakeVal, 2); ai.vehicle.setBrake(brakeVal, 3);
+        let aiAbsBrakeVal = brakeVal;
+        if (Math.abs(steerVal) > 0.1) {
+            aiAbsBrakeVal *= Math.max(0.4, 1.0 - Math.abs(steerVal) * 0.8);
+        }
+        ai.vehicle.setBrake(aiAbsBrakeVal, 0); ai.vehicle.setBrake(aiAbsBrakeVal, 1);
+        ai.vehicle.setBrake(aiAbsBrakeVal * 0.5, 2); ai.vehicle.setBrake(aiAbsBrakeVal * 0.5, 3);
 
         if (ai.body.userData.mesh) { ai.body.userData.mesh.position.copy(ai.body.position); ai.body.userData.mesh.quaternion.copy(ai.body.quaternion); }
         for (let i = 0; i < 4; i++) { ai.vehicle.updateWheelTransform(i); const t = ai.vehicle.wheelInfos[i].worldTransform; ai.wheels[i].position.copy(t.position); ai.wheels[i].quaternion.copy(t.quaternion); }

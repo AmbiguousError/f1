@@ -383,7 +383,7 @@ function animate() {
                 }
                 if (inputs.brake) { brakeVal = 150; force = 0; }
 
-                let maxSteer = Math.max(0.2, 0.6 - (speed * 0.008)); if (cfg.weather === 'wet') maxSteer *= 0.8;
+                let maxSteer = Math.max(0.3, 0.65 - (speed * 0.006)); if (cfg.weather === 'wet') maxSteer *= 0.8;
                 let inputVal = inputs.left ? 1 : (inputs.right ? -1 : 0); if (inputVal !== 0) { const steerSpeed = 0.1; state.currentSteer += inputVal * steerSpeed; } else { state.currentSteer *= 0.8; }
                 if (state.currentSteer > 1) state.currentSteer = 1; if (state.currentSteer < -1) state.currentSteer = -1; const curve = Math.abs(state.currentSteer) ** 1.5; steering = Math.sign(state.currentSteer) * curve * maxSteer;
                 if (kph < 10 && inputs.brake) { state.resetTimer += 0.02; if (state.resetTimer > 1.5) resetCar(); document.getElementById('reset-bar').style.display = 'block'; document.getElementById('reset-progress').style.width = (state.resetTimer / 1.5) * 100 + '%'; } else { state.resetTimer = 0; document.getElementById('reset-bar').style.display = 'none'; }
@@ -441,7 +441,12 @@ function animate() {
         // correctly in the box" check here.
 
         state.vehicle.applyEngineForce(force * state.surfaceForce, 2); state.vehicle.applyEngineForce(force * state.surfaceForce, 3);
-        state.vehicle.setBrake(brakeVal, 0); state.vehicle.setBrake(brakeVal, 1); state.vehicle.setBrake(brakeVal, 2); state.vehicle.setBrake(brakeVal, 3);
+        let absBrakeVal = brakeVal;
+        if (Math.abs(steering) > 0.1) {
+            absBrakeVal *= Math.max(0.4, 1.0 - Math.abs(steering) * 0.8);
+        }
+        state.vehicle.setBrake(absBrakeVal, 0); state.vehicle.setBrake(absBrakeVal, 1);
+        state.vehicle.setBrake(absBrakeVal * 0.5, 2); state.vehicle.setBrake(absBrakeVal * 0.5, 3);
         if ((inputs.brake && speed > 5) || Math.abs(state.currentSteer) > 0.4 && speed > 15) { spawnDust(state.visualWheels[2].position, 0xaaaaaa); spawnDust(state.visualWheels[3].position, 0xaaaaaa); }
         if (cfg.weather === 'wet' && onSurface === 'tarmac' && speed > 20) { if (Math.random() > 0.5) { spawnDust(state.visualWheels[2].position, 0xffffff); spawnDust(state.visualWheels[3].position, 0xffffff); } }
         if (state.surfaceDust !== null && onSurface === 'tarmac' && speed > 15) { if (Math.random() > 0.5) { spawnDust(state.visualWheels[2].position, state.surfaceDust); spawnDust(state.visualWheels[3].position, state.surfaceDust); } }
