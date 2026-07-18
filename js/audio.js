@@ -25,4 +25,5 @@ export function updateAudio(speed) {
     if (rpm < 0.2) rpm = 0.2; if (rpm > 1.0) rpm = 1.0;
     state.engineOsc.frequency.setTargetAtTime(frequency, state.audioCtx.currentTime, 0.1); const harmonic = isMini ? 0.5 : 1.33; state.turboOsc.frequency.setTargetAtTime(frequency * harmonic, state.audioCtx.currentTime, 0.1);
     let vol = (inputs.up) ? 0.25 : 0.1; if (rpm < 0.3 && gear > 1) vol *= 0.5; if (state.raceState === 'finished') vol = 0.05; state.engineGain.gain.setTargetAtTime(vol, state.audioCtx.currentTime, 0.1);
+    state.turboGain.gain.setTargetAtTime(state.raceState === 'finished' ? 0.015 : 0.05, state.audioCtx.currentTime, 0.1);
 }

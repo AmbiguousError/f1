@@ -49,6 +49,9 @@ export function getRaceStandings() {
 export function updateFinishScreenUI(results) {
     const el = document.getElementById('finish-screen'); const title = document.getElementById('finish-title'); const sub = document.getElementById('finish-subtitle'); const list = document.getElementById('race-results-list'); const seasonList = document.getElementById('season-results-list'); const nextBtn = document.getElementById('next-btn'); const seasonCol = document.getElementById('season-col'); const header = document.getElementById('res-header-1');
     el.style.display = 'block';
+    // Race results dock to the side so the player car stays visible; qualifying keeps
+    // the centered layout (no live action worth watching behind it).
+    el.classList.toggle('docked', state.sessionType !== 'qualifying');
     if (state.sessionType === 'qualifying') {
         title.innerText = "QUALIFYING COMPLETE"; sub.innerText = "GRID SET FOR RACE"; header.innerText = "STARTING GRID"; nextBtn.innerText = "START RACE"; seasonCol.style.display = 'none';
         const playerTime = results[0].finishTime;
@@ -104,7 +107,20 @@ export function selectNextCompound(idx) {
 }
 window.selectNextCompound = selectNextCompound;
 
-export function completeLap() { const now = Date.now(); if (now - state.startTime < 1000) return; state.currentLap++; if (state.currentLap > state.totalLaps) { state.raceState = 'finished'; let results = []; if (state.sessionType === 'qualifying') { results.push({ name: "Player", dist: 0, driverIndex: 0, finished: true, finishTime: (Date.now() - state.raceStartTime) }); } else { results = getRaceStandings(); } updateFinishScreenUI(results); } else { document.getElementById('lap-val').innerText = `${state.currentLap}/${state.totalLaps}`; state.startTime = now; } }
+export function completeLap() {
+    const now = Date.now(); if (now - state.startTime < 1000) return; state.currentLap++;
+    if (state.currentLap > state.totalLaps) {
+        state.raceState = 'finished';
+        if (state.sessionType === 'qualifying') {
+            updateFinishScreenUI([{ name: "Player", dist: 0, driverIndex: 0, finished: true, finishTime: (Date.now() - state.raceStartTime) }]);
+        } else {
+            // Let the race world breathe for a few seconds (cars keep circulating, engine
+            // quiets down) before the results panel appears. Standings are re-read at show
+            // time so AI cars finishing during the delay get proper finish times.
+            setTimeout(() => { if (state.isRunning && state.raceState === 'finished') updateFinishScreenUI(getRaceStandings()); }, 3000);
+        }
+    } else { document.getElementById('lap-val').innerText = `${state.currentLap}/${state.totalLaps}`; state.startTime = now; }
+}
 
 export function updateLogic() {
     const p = state.chassisBody.position; const targetCP = state.checkpoints[state.nextCheckpoint]; const dx = p.x - targetCP.x; const dy = p.y - targetCP.y; const dz = p.z - targetCP.z;
