@@ -60,8 +60,12 @@ export function getRaceStandings() {
     });
     results.sort((a, b) => {
         if (a.finished && b.finished) return a.finishTime - b.finishTime;
-        if (a.finished) return -1;
-        if (b.finished) return 1;
+        if (a.finished && !b.finished) {
+            return b.dist > a.dist ? 1 : -1;
+        }
+        if (b.finished && !a.finished) {
+            return a.dist > b.dist ? -1 : 1;
+        }
         return b.dist - a.dist;
     });
     return results;
