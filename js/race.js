@@ -203,6 +203,23 @@ export function updateLogic() {
         if (!ai.finished && distToNextCP < 1600) { if (ai.nextCp === 0) { const t0 = state.trackPoints[0], t1 = state.trackPoints[1]; if ((pos.x - t0.x) * (t1.x - t0.x) + (pos.z - t0.z) * (t1.z - t0.z) >= 0) { ai.lap++; ai.nextCp = 1; if (ai.lap > state.totalLaps && !ai.finished) { ai.finished = true; ai.finishTime = Date.now() - state.raceStartTime; } } } else { ai.nextCp++; if (ai.nextCp >= state.checkpoints.length) ai.nextCp = 0; } }
 
         let lookAheadVal = ai.skill.lookAhead;
+        if (state.trackPoints.length > 20) {
+            const pCurrent = state.trackPoints[cIdx];
+            const pCurrentNext = state.trackPoints[(cIdx + 1) % state.trackPoints.length];
+            const pFuture = state.trackPoints[(cIdx + 15) % state.trackPoints.length];
+            const pFutureNext = state.trackPoints[(cIdx + 16) % state.trackPoints.length];
+            const tCurrentX = pCurrentNext.x - pCurrent.x;
+            const tCurrentZ = pCurrentNext.z - pCurrent.z;
+            const tCurrentLen = Math.hypot(tCurrentX, tCurrentZ) || 1;
+            const tFutureX = pFutureNext.x - pFuture.x;
+            const tFutureZ = pFutureNext.z - pFuture.z;
+            const tFutureLen = Math.hypot(tFutureX, tFutureZ) || 1;
+            const dot = (tCurrentX * tFutureX + tCurrentZ * tFutureZ) / (tCurrentLen * tFutureLen);
+            if (dot < 0.995) {
+                const curveFactor = Math.max(0.0, (dot - 0.92) / 0.075);
+                lookAheadVal = Math.round(10 + curveFactor * (lookAheadVal - 10));
+            }
+        }
         if (onSurface !== 'tarmac') { lookAheadVal = 5; }
         if (cfg.weather === 'wet') { lookAheadVal = Math.max(10, lookAheadVal - 5); }
         const lookAheadIdx = (cIdx + lookAheadVal) % state.trackPoints.length;
@@ -282,12 +299,12 @@ export function updateLogic() {
             // once the tyre change is done (wantsToPit false) drive out at the limiter,
             // otherwise the car parks at the box forever.
             const distToPitBoxSq = (pos.x - state.pitBoxPosition.x) ** 2 + (pos.z - state.pitBoxPosition.z) ** 2;
-            if (distToPitBoxSq < 225 && (ai.wantsToPit || ai.isPitting)) {
+            if (distToPitBoxSq < 900 && (ai.wantsToPit || ai.isPitting)) {
                 const dist = Math.sqrt(distToPitBoxSq);
                 if (dist < 4.5) {
                     desiredSpeed = 0; // Stop
                 } else {
-                    desiredSpeed = Math.min(desiredSpeed, (dist / 15.0) * (110 / 3.6));
+                    desiredSpeed = Math.min(desiredSpeed, (dist / 30.0) * (110 / 3.6));
                 }
             }
         }
@@ -326,7 +343,7 @@ export function updateLogic() {
                 // Low-res tyre-change visual: blink the compound stripes during the stop.
                 const stripeOn = Math.floor(ai.pitStopTimer * 4) % 2 === 0;
                 ai.tyreStripes.forEach(s => s.visible = stripeOn);
-                if (ai.pitStopTimer >= 1.25) {
+                if (ai.pitStopTimer >= 1.5) {
                     // Pit stop complete! Choose next compound strategically
                     if (cfg.raceStyle === 'rally' && (cfg.surface === 'snow' || cfg.surface === 'mud')) {
                         ai.compoundIdx = 3; // Rally tyres for rally tracks

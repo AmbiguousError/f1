@@ -299,17 +299,17 @@ function animate() {
                 const distToBoxSq = pdx * pdx + pdz * pdz;
 
                 if (state.pitPhase === 'entering') {
-                    if (distToBoxSq < 225) {
+                    if (distToBoxSq < 900) {
                         const dist = Math.sqrt(distToBoxSq);
-                        desiredSpeed = dist < 4.5 ? 0 : Math.min(desiredSpeed, (dist / 15.0) * (110 / 3.6));
+                        desiredSpeed = dist < 4.5 ? 0 : Math.min(desiredSpeed, (dist / 30.0) * (110 / 3.6));
                         if (dist < 4.5 && kph < 1.5) { state.pitPhase = 'stopped'; state.pitTimer = 0; }
                     }
                     msgEl.style.display = 'block'; msgEl.innerText = "PIT LANE"; msgEl.style.borderColor = '#3498db';
                 } else if (state.pitPhase === 'stopped') {
                     desiredSpeed = 0;
                     state.pitTimer += 1 / 60; msgEl.style.display = 'block'; msgEl.style.borderColor = '#3498db';
-                    if (state.pitTimer < 1.25) {
-                        const pct = Math.floor((state.pitTimer / 1.25) * 100); msgEl.innerText = `CHANGING TYRES... ${pct}%`;
+                    if (state.pitTimer < 1.5) {
+                        const pct = Math.floor((state.pitTimer / 1.5) * 100); msgEl.innerText = `CHANGING TYRES... ${pct}%`;
                         // Low-res "tyres being changed" visual: blink the compound stripes.
                         const stripeOn = Math.floor(state.pitTimer * 4) % 2 === 0;
                         state.playerTyreStripes.forEach(s => s.visible = stripeOn);
