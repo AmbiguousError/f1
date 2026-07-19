@@ -269,7 +269,10 @@ export function updateLogic() {
                 else if (diff > cfg.trackRes / 2) diff -= cfg.trackRes;
                 
                 if (diff >= 3 && diff <= 25) {
-                    const distSq = myPos.distanceToSquared(other.pos);
+                    const dx = other.pos.x - myPos.x;
+                    const dy = other.pos.y - myPos.y;
+                    const dz = other.pos.z - myPos.z;
+                    const distSq = dx * dx + dy * dy + dz * dz;
                     if (distSq < 1600 && distSq < closestDistSq) {
                         closestDistSq = distSq;
                         closestCarAhead = other;

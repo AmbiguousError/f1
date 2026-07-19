@@ -272,7 +272,10 @@ function animate() {
                     else if (diff > cfg.trackRes / 2) diff -= cfg.trackRes;
                     
                     if (diff >= 3 && diff <= 25) {
-                        const distSq = pPos.distanceToSquared(ai.body.position);
+                        const dx = ai.body.position.x - pPos.x;
+                        const dy = ai.body.position.y - pPos.y;
+                        const dz = ai.body.position.z - pPos.z;
+                        const distSq = dx * dx + dy * dy + dz * dz;
                         if (distSq < 1600 && distSq < closestAIDistSq) {
                             closestAIDistSq = distSq;
                             closestAICarAhead = ai;
