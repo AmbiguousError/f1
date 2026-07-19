@@ -47,14 +47,34 @@ export function setupSkidmarkPool() {
 
 export function updateSkidmarks() {
     const speed = state.chassisBody.velocity.length();
-    if (inputs.brake && speed > 10) { if (state.visualWheels[2]) addSkid(state.visualWheels[2].position); if (state.visualWheels[3]) addSkid(state.visualWheels[3].position); }
+    // Default F1 braking skidmarks:
+    if (inputs.brake && speed > 10) {
+        [2, 3].forEach(idx => {
+            const w = state.visualWheels[idx];
+            if (w) {
+                if (!w.userData.lastSkidPos) w.userData.lastSkidPos = new THREE.Vector3();
+                if (w.position.distanceToSquared(w.userData.lastSkidPos) > 0.5) {
+                    addSkid(w.position);
+                    w.userData.lastSkidPos.copy(w.position);
+                }
+            }
+        });
+    }
+    // Rally tyre marks in soft surfaces:
     if (cfg.raceStyle === 'rally' && (cfg.surface === 'snow' || cfg.surface === 'mud') && speed > 2) {
-        state.visualWheels.forEach(w => { if (w) addSkid(w.position); });
+        state.visualWheels.forEach(w => {
+            if (w) {
+                if (!w.userData.lastSkidPos) w.userData.lastSkidPos = new THREE.Vector3();
+                if (w.position.distanceToSquared(w.userData.lastSkidPos) > 0.8) {
+                    addSkid(w.position);
+                    w.userData.lastSkidPos.copy(w.position);
+                }
+            }
+        });
     }
 }
 
 export function addSkid(pos) {
-    if (Math.random() > 0.3) return;
     if (skidmarkPool.length === 0) return;
     const m = skidmarkPool[skidmarkIndex];
     m.position.copy(pos);

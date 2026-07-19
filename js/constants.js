@@ -27,7 +27,7 @@ export const ZOOM_LEVELS = [ { y: 60, dist: 40 }, { y: 120, dist: 80 }, { y: 200
 
 export const POINTS_SYSTEM = [25, 18, 15, 12, 10, 8];
 
-export const MAX_SKIDMARKS = 1200;
+export const MAX_SKIDMARKS = 450;
 
 // Rally mode surfaces: whole-track grip/engine multipliers plus the visual palette.
 // Grip multiplies wheel frictionSlip (and AI cornering speed); force scales engine power.
