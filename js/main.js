@@ -262,7 +262,7 @@ function animate() {
             // laterally past the main track's kerb onto that extra tarmac while inside that ramp
             // window - checking the index window alone would also fire for a driver simply
             // holding the racing line through the same stretch, so we require both.
-            const PIT_LEN = 60, PIT_RAMP_LEN = 25, PIT_ENTRY_LATERAL_THRESHOLD = 12;
+            const PIT_LEN = 60, PIT_RAMP_LEN = 25, PIT_ENTRY_LATERAL_THRESHOLD = 8.5;
             if (state.pitPhase === 'none' && state.pitBoxPosition) {
                 let pitRelIdx = cIdx; if (pitRelIdx > cfg.trackRes / 2) pitRelIdx -= cfg.trackRes;
                 if (pitRelIdx >= -PIT_LEN && pitRelIdx <= -PIT_LEN + PIT_RAMP_LEN) {
@@ -350,9 +350,10 @@ function animate() {
                 // brake input covers both jobs a "BRAKE" pedal does intuitively - slow down while
                 // still rolling forward, and once nearly stopped, keep holding it to reverse -
                 // rather than requiring a separate reverse key.
+                const autoActive = inputs.brake || inputs.down;
                 state.chassisBody.vectorToLocalFrame(state.chassisBody.velocity, scratch.localVel);
                 const movingForward = scratch.localVel.z > 0.5;
-                if (inputs.brake && movingForward) {
+                if (autoActive && movingForward) {
                     state.autoBrakeTime += 1 / 60;
                     const durationRamp = Math.min(1.0, state.autoBrakeTime / 0.6);
                     const baseBrake = 30 + 120 * durationRamp;
@@ -360,7 +361,7 @@ function animate() {
                     const speedReduction = kph < 60 ? Math.max(0.3, kph / 60) : 1.0;
                     brakeVal = baseBrake * steerReduction * speedReduction;
                     force = 0;
-                } else if (inputs.brake) {
+                } else if (autoActive) {
                     state.autoBrakeTime = 0;
                     let speedRatio = Math.min(1.0, kph / reverseTopSpeedKph);
                     let torqueMultiplier = 1.0 - Math.pow(speedRatio, 2);
@@ -381,7 +382,7 @@ function animate() {
                 // button also drives a deliberate reverse maneuver here, a loose "<10kph" threshold
                 // would misfire mid-reverse. Speed only lingers under ~2kph while genuinely stuck
                 // (wedged against a wall, flipped, etc), not while actively backing out.
-                if (kph < 2 && inputs.brake) { state.resetTimer += 0.02; if (state.resetTimer > 1.5) resetCar(); document.getElementById('reset-bar').style.display = 'block'; document.getElementById('reset-progress').style.width = (state.resetTimer / 1.5) * 100 + '%'; } else { state.resetTimer = 0; document.getElementById('reset-bar').style.display = 'none'; }
+                if (kph < 2 && autoActive) { state.resetTimer += 0.02; if (state.resetTimer > 1.5) resetCar(); document.getElementById('reset-bar').style.display = 'block'; document.getElementById('reset-progress').style.width = (state.resetTimer / 1.5) * 100 + '%'; } else { state.resetTimer = 0; document.getElementById('reset-bar').style.display = 'none'; }
             } else {
                 if (inputs.up) {
                     let speedRatio = Math.min(1.0, kph / topSpeedKph);
