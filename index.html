@@ -126,6 +126,7 @@
                 <button class="opt-btn" onclick="setDifficulty('easy', this)">EASY</button>
                 <button class="opt-btn" onclick="setDifficulty('medium', this)">MED</button>
                 <button class="opt-btn selected" onclick="setDifficulty('hard', this)">HARD</button>
+                <button class="opt-btn" onclick="setDifficulty('rival', this)">RIVAL</button>
             </div>
             <div class="menu-row">
                 <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">ZOOM</span>
@@ -221,11 +222,13 @@
                 </div>
             </div>
             <button class="menu-btn" style="margin-top: 30px" id="next-btn" onclick="handleNext()">NEXT RACE</button>
+            <button class="menu-btn" onclick="restartRace()">RESTART</button>
         </div>
 
         <div id="pause-menu">
             <h1>PAUSED</h1>
             <button class="menu-btn" onclick="togglePause()">RESUME RACE</button>
+            <button class="menu-btn" onclick="restartRace()">RESTART</button>
             <button class="menu-btn" onclick="quitToMenu()">RETIRE</button>
         </div>
 

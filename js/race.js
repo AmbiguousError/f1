@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { state, cfg, season, scratch } from './state.js';
 import { TYRE_COMPOUNDS, TYRE_COLORS, POINTS_SYSTEM } from './constants.js';
-import { formatTime } from './utils.js';
+import { formatTime, pitEase } from './utils.js';
 import { findClosestTrackPoint, getPitLaneOffset, teleportToTrack } from './track.js';
 import { spawnDust } from './effects.js';
 import { setCarGhost } from './cars.js';
@@ -39,18 +39,21 @@ function makePodium(title, top3, isChampionship) {
     return wrap;
 }
 
+// Lap counters increment ~40 units BEFORE the line (checkpoint-0 trigger radius), while
+// closestIdx only wraps to 0 AT the line. In that gap — and for cars still sitting behind
+// the line at the start (nextCp starts at 1, lap 1) — a high closestIdx would count as
+// nearly a full extra lap, so pull it back by one lap. Shared by getRaceStandings() and the
+// rival-pacing gap check in updateLogic().
+function totalRaceDist(closestIdx, lap, nextCp) {
+    let dist = (lap - 1) * state.trackPoints.length + closestIdx;
+    if (nextCp === 1 && closestIdx > state.trackPoints.length * 0.75) {
+        dist -= state.trackPoints.length;
+    }
+    return dist;
+}
+
 export function getRaceStandings() {
-    const getTotalDistCached = (closestIdx, lap, nextCp) => {
-        let dist = (lap - 1) * state.trackPoints.length + closestIdx;
-        // Lap counters increment ~40 units BEFORE the line (checkpoint-0 trigger radius),
-        // while closestIdx only wraps to 0 AT the line. In that gap — and for cars still
-        // sitting behind the line at the start (nextCp starts at 1, lap 1) — a high
-        // closestIdx would count as nearly a full extra lap, so pull it back by one lap.
-        if (nextCp === 1 && closestIdx > state.trackPoints.length * 0.75) {
-            dist -= state.trackPoints.length;
-        }
-        return dist;
-    };
+    const getTotalDistCached = totalRaceDist;
     let results = [];
     const pFinished = state.currentLap > state.totalLaps;
     results.push({
@@ -71,6 +74,7 @@ export function getRaceStandings() {
             finishTime: ai.finishTime,
             speed: ai.body ? ai.body.velocity.length() : 0,
             color: season.drivers[ai.id + 1] ? season.drivers[ai.id + 1].color : 0xffffff,
+            isRival: !!ai.isRival,
         });
     });
     results.sort((a, b) => {
@@ -400,7 +404,67 @@ export function updateLogic() {
             ai.inPitLane = false;
         }
         // Ghost while in the pit lane (no car-car collisions, semi-transparent); restore on exit.
-        if (ai.inPitLane !== wasInPitLane) setCarGhost(ai.body, ai.ghostMats, ai.inPitLane);
+        if (ai.inPitLane !== wasInPitLane) {
+            setCarGhost(ai.body, ai.ghostMats, ai.inPitLane);
+            if (ai.inPitLane) {
+                // Scripted (non-physics) pit stop: capture the entry pose and precompute the box/
+                // exit waypoints now, so the drive-in/hold/drive-out animation below can interpolate
+                // between them - matching the player's pit stop in main.js.
+                ai.pitStartTime = Date.now();
+                ai.pitTyresApplied = false;
+                ai.body.velocity.set(0, 0, 0);
+                ai.body.angularVelocity.set(0, 0, 0);
+                const entryQ = ai.body.quaternion;
+                ai.pitEntryPos = { x: ai.body.position.x, y: ai.body.position.y, z: ai.body.position.z };
+                ai.pitEntryQuat = { x: entryQ.x, y: entryQ.y, z: entryQ.z, w: entryQ.w };
+
+                const boxDummy = new THREE.Object3D();
+                boxDummy.position.set(state.trackPoints[0].x, state.trackPoints[0].y, state.trackPoints[0].z);
+                boxDummy.lookAt(state.trackPoints[5]);
+                ai.pitBoxQuat = {
+                    x: boxDummy.quaternion.x,
+                    y: boxDummy.quaternion.y,
+                    z: boxDummy.quaternion.z,
+                    w: boxDummy.quaternion.w,
+                };
+
+                const exitIdx = 45 % state.trackPoints.length;
+                const e1 = state.trackPoints[exitIdx];
+                const e2 = state.trackPoints[(exitIdx + 5) % state.trackPoints.length];
+                const exitDummy = new THREE.Object3D();
+                exitDummy.position.copy(e1);
+                exitDummy.lookAt(e2);
+                // Release still offset into the merge lane, matching main.js's player exit - lets
+                // the normal steering-to-track-point logic (and the gap check below) merge the AI
+                // back onto the racing line instead of popping directly into on-track traffic.
+                const exitTanX = e2.x - e1.x,
+                    exitTanZ = e2.z - e1.z;
+                const exitTanLen = Math.hypot(exitTanX, exitTanZ) || 1;
+                const exitSideX = exitTanZ / exitTanLen,
+                    exitSideZ = -exitTanX / exitTanLen;
+                const exitLaneOffset = getPitLaneOffset(exitIdx);
+                ai.pitExitPos = {
+                    x: e1.x + exitSideX * exitLaneOffset,
+                    y: e1.y,
+                    z: e1.z + exitSideZ * exitLaneOffset,
+                };
+                ai.pitExitQuat = {
+                    x: exitDummy.quaternion.x,
+                    y: exitDummy.quaternion.y,
+                    z: exitDummy.quaternion.z,
+                    w: exitDummy.quaternion.w,
+                };
+
+                // Drive-in/out duration comes from actual distance at pit-lane pace, not a fixed
+                // time - see the matching comment in main.js's player pit-stop animation.
+                const PIT_DRIVE_SPEED = 70 / 3.6;
+                const boxPos = state.pitBoxPosition;
+                const driveInDist = Math.hypot(boxPos.x - ai.pitEntryPos.x, boxPos.z - ai.pitEntryPos.z);
+                const driveOutDist = Math.hypot(ai.pitExitPos.x - boxPos.x, ai.pitExitPos.z - boxPos.z);
+                ai.pitDriveInT = Math.max(0.8, Math.min(15.0, driveInDist / PIT_DRIVE_SPEED));
+                ai.pitDriveOutT = Math.max(0.8, Math.min(15.0, driveOutDist / PIT_DRIVE_SPEED));
+            }
+        }
 
         // AI Slipstream (Drafting) and Overtaking logic
         let slipstreamActive = false;
@@ -506,24 +570,40 @@ export function updateLogic() {
             desiredSpeed += 20 / 3.6;
         }
 
-        // Pit Lane Speed Control and Stopping in Pit Box
-        if (ai.inPitLane) {
-            // Pit lane speed limit: 110 km/h
-            desiredSpeed = 110 / 3.6;
+        // RIVAL difficulty: nudge this one driver's pace toward a target time-gap to the player
+        // instead of just driving flat-out, so there's a real back-and-forth battle all race
+        // rather than a runaway. Tightens up in the closing laps for a dramatic finish. This is a
+        // small multiplicative correction on top of normal driving (tyre wear/weather/cornering/
+        // slipstream still apply above), not a teleport/snap, so it should read as "racing" rather
+        // than obvious rubber-banding.
+        if (
+            ai.isRival &&
+            cfg.difficulty === 'rival' &&
+            state.raceState === 'racing' &&
+            !ai.finished &&
+            !ai.inPitLane
+        ) {
+            const playerDist = totalRaceDist(state.playerLastClosestIdx, state.currentLap, state.nextCheckpoint);
+            const rivalDist = totalRaceDist(cIdx, ai.lap, ai.nextCp);
+            const ptSpacing = state.trackPoints.length > 1 ? state.trackPoints[0].distanceTo(state.trackPoints[1]) : 1.0;
+            const metersGap = (playerDist - rivalDist) * ptSpacing; // + = rival trails the player
+            const refSpeed = Math.max(8.0, speed);
+            const gapSeconds = metersGap / refSpeed;
 
-            // Slow down to stop in the pit box — but only while a stop is still owed;
-            // once the tyre change is done (wantsToPit false) drive out at the limiter,
-            // otherwise the car parks at the box forever.
-            const distToPitBoxSq = (pos.x - state.pitBoxPosition.x) ** 2 + (pos.z - state.pitBoxPosition.z) ** 2;
-            if (distToPitBoxSq < 900 && (ai.wantsToPit || ai.isPitting)) {
-                const dist = Math.sqrt(distToPitBoxSq);
-                if (dist < 4.5) {
-                    desiredSpeed = 0; // Stop
-                } else {
-                    desiredSpeed = Math.min(desiredSpeed, (dist / 30.0) * (110 / 3.6));
-                }
-            }
+            const lapsRemaining = state.totalLaps - ai.lap;
+            const closingIn = lapsRemaining <= 2;
+            const targetGapSeconds = closingIn ? 0.5 : 1.5;
+            const gain = closingIn ? 0.12 : 0.06;
+            const maxAdjust = closingIn ? 0.25 : 0.15;
+
+            const gapError = gapSeconds - targetGapSeconds; // + = rival too far behind, speed up
+            const paceFactor = 1 + Math.max(-maxAdjust, Math.min(maxAdjust, gapError * gain));
+            desiredSpeed *= paceFactor;
         }
+
+        // Pit stop: fully scripted while inPitLane, so the normal steering-target speed above is
+        // irrelevant here - the car's transform is driven directly by the animation below.
+        if (ai.inPitLane) desiredSpeed = 0;
 
         const maxSteerLimit = cfg.raceStyle === 'rally' ? 0.75 : 0.5;
         const steerVal = Math.max(-maxSteerLimit, Math.min(maxSteerLimit, steer));
@@ -531,7 +611,7 @@ export function updateLogic() {
         ai.vehicle.setSteeringValue(steerVal, 1);
 
         // AI Tyre Wear
-        if (state.raceState === 'racing' && !cfg.noTyreWear && !ai.finished && !ai.isPitting) {
+        if (state.raceState === 'racing' && !cfg.noTyreWear && !ai.finished && !ai.inPitLane) {
             const aiSpeed = speed;
             let aiOnSurface = onSurface;
             let aiSurfaceMultiplier = 1.0;
@@ -544,23 +624,38 @@ export function updateLogic() {
             if (ai.tyreLife < 0) ai.tyreLife = 0;
         }
 
-        // AI Pit Stop Execution
-        if (state.pitBoxPosition && state.raceState === 'racing' && !ai.finished && ai.inPitLane) {
-            const adx = pos.x - state.pitBoxPosition.x;
-            const adz = pos.z - state.pitBoxPosition.z;
-            const distToPitBoxSq = adx * adx + adz * adz;
-            // wantsToPit/isPitting gate: without it, a car accelerating away from its finished
-            // stop is still slow + near the box and would immediately begin another stop.
-            if (distToPitBoxSq < 225 && speed < 1.5 && (ai.wantsToPit || ai.isPitting)) {
-                if (!ai.isPitting) {
-                    ai.isPitting = true;
-                    ai.pitStopTimer = 0;
-                }
-                ai.pitStopTimer += 1 / 60;
+        // AI Pit Stop Execution: scripted drive-in / hold / drive-out animation - drive-in/out
+        // duration is real-distance-at-pit-pace (ai.pitDriveInT/pitDriveOutT, set at entry above),
+        // the tyre change itself is a fixed PIT_HOLD_T - matching the player's pit stop in main.js.
+        if (ai.inPitLane) {
+            const PIT_DRIVE_IN_T = ai.pitDriveInT;
+            const PIT_HOLD_T = 2.0;
+            const PIT_DRIVE_OUT_T = ai.pitDriveOutT;
+            const PIT_EXIT_SPEED = 70 / 3.6; // matches the player's pit-lane-limit exit pace in main.js
+            ai.body.velocity.set(0, 0, 0);
+            ai.body.angularVelocity.set(0, 0, 0);
+            // Wall-clock elapsed time, not frame count - see the matching comment in main.js's
+            // player pit-stop animation for why a fixed per-frame increment isn't safe here.
+            const t = (Date.now() - ai.pitStartTime) / 1000;
+            const boxP = state.pitBoxPosition;
+
+            if (t < PIT_DRIVE_IN_T) {
+                const f = pitEase(t / PIT_DRIVE_IN_T);
+                const a = ai.pitEntryPos;
+                ai.body.position.set(a.x + (boxP.x - a.x) * f, a.y + (boxP.y - a.y) * f + 2, a.z + (boxP.z - a.z) * f);
+                const qa = new THREE.Quaternion(ai.pitEntryQuat.x, ai.pitEntryQuat.y, ai.pitEntryQuat.z, ai.pitEntryQuat.w);
+                const qb = new THREE.Quaternion(ai.pitBoxQuat.x, ai.pitBoxQuat.y, ai.pitBoxQuat.z, ai.pitBoxQuat.w);
+                qa.slerp(qb, f);
+                ai.body.quaternion.copy(qa);
+            } else if (t < PIT_DRIVE_IN_T + PIT_HOLD_T) {
+                ai.body.position.set(boxP.x, boxP.y + 2, boxP.z);
+                const holdT = t - PIT_DRIVE_IN_T;
                 // Low-res tyre-change visual: blink the compound stripes during the stop.
-                const stripeOn = Math.floor(ai.pitStopTimer * 4) % 2 === 0;
+                const stripeOn = Math.floor(holdT * 4) % 2 === 0;
                 ai.tyreStripes.forEach((s) => (s.visible = stripeOn));
-                if (ai.pitStopTimer >= 1.5) {
+            } else if (t < PIT_DRIVE_IN_T + PIT_HOLD_T + PIT_DRIVE_OUT_T) {
+                if (!ai.pitTyresApplied) {
+                    ai.pitTyresApplied = true;
                     // Pit stop complete! Choose next compound strategically
                     if (cfg.raceStyle === 'rally' && (cfg.surface === 'snow' || cfg.surface === 'mud')) {
                         ai.compoundIdx = 3; // Rally tyres for rally tracks
@@ -580,15 +675,59 @@ export function updateLogic() {
                         s.visible = true;
                     });
                     ai.wantsToPit = false;
-                    ai.isPitting = false;
                 }
+                const f = pitEase((t - PIT_DRIVE_IN_T - PIT_HOLD_T) / PIT_DRIVE_OUT_T);
+                const c = ai.pitExitPos;
+                ai.body.position.set(boxP.x + (c.x - boxP.x) * f, boxP.y + (c.y - boxP.y) * f + 2, boxP.z + (c.z - boxP.z) * f);
+                const qa = new THREE.Quaternion(ai.pitBoxQuat.x, ai.pitBoxQuat.y, ai.pitBoxQuat.z, ai.pitBoxQuat.w);
+                const qb = new THREE.Quaternion(ai.pitExitQuat.x, ai.pitExitQuat.y, ai.pitExitQuat.z, ai.pitExitQuat.w);
+                qa.slerp(qb, f);
+                ai.body.quaternion.copy(qa);
             } else {
-                if (ai.isPitting) ai.tyreStripes.forEach((s) => (s.visible = true));
-                ai.isPitting = false;
+                const c = ai.pitExitPos;
+                // Match normal ride height (trackY + 1, see cars.js) rather than the +2 used
+                // throughout the kinematic animation - see the matching comment in main.js.
+                ai.body.position.set(c.x, c.y + 1, c.z);
+                const qb = new THREE.Quaternion(ai.pitExitQuat.x, ai.pitExitQuat.y, ai.pitExitQuat.z, ai.pitExitQuat.w);
+                ai.body.quaternion.copy(qb);
+
+                // Cars already on the racing line have priority over one merging in from the pits:
+                // hold at the merge-lane waypoint (still ghosted, no collision) until it's clear
+                // instead of releasing straight into traffic. Give up and merge anyway after a few
+                // extra seconds so a temporarily busy line can't park the car forever.
+                const MERGE_CLEAR_RADIUS_SQ = 15 * 15;
+                const forceRelease = t > PIT_DRIVE_IN_T + PIT_HOLD_T + PIT_DRIVE_OUT_T + 3.0;
+                let mergeBlocked = false;
+                if (!forceRelease) {
+                    // Ghosted/still-animating cars (player mid-pit-stop) can't actually collide,
+                    // so they don't count as blocking the merge.
+                    if (state.chassisBody && state.pitPhase === 'none') {
+                        const dx = state.chassisBody.position.x - c.x;
+                        const dz = state.chassisBody.position.z - c.z;
+                        if (dx * dx + dz * dz < MERGE_CLEAR_RADIUS_SQ) mergeBlocked = true;
+                    }
+                    if (!mergeBlocked) {
+                        for (const other of state.aiCars) {
+                            if (other === ai || other.inPitLane) continue;
+                            const odx = other.body.position.x - c.x;
+                            const odz = other.body.position.z - c.z;
+                            if (odx * odx + odz * odz < MERGE_CLEAR_RADIUS_SQ) {
+                                mergeBlocked = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!mergeBlocked) {
+                    // Leave already rolling at pit-lane pace, not from a dead stop - matches the
+                    // player's exit behavior in main.js so AI pit stops blend into the race the same way.
+                    const exitForward = new THREE.Vector3(0, 0, 1).applyQuaternion(qb);
+                    ai.body.velocity.set(exitForward.x * PIT_EXIT_SPEED, 0, exitForward.z * PIT_EXIT_SPEED);
+                    ai.inPitLane = false;
+                    setCarGhost(ai.body, ai.ghostMats, false);
+                }
             }
-        } else {
-            if (ai.isPitting) ai.tyreStripes.forEach((s) => (s.visible = true));
-            ai.isPitting = false;
         }
 
         let baseAccelForce = cfg.carClass === 'mini' ? -3500 : cfg.carClass === 'rally' ? -5000 : -7000;
@@ -723,9 +862,10 @@ function updateLiveLeaderboard(rankings) {
             }
         }
         const colorHex = '#' + (r.color >>> 0).toString(16).padStart(6, '0');
+        const rivalTag = r.isRival ? ' <span style="color:#e74c3c;font-weight:900;">★ RIVAL</span>' : '';
         row.innerHTML = `
             <span class="leaderboard-pos pos-${i + 1}">${i + 1}</span>
-            <span class="leaderboard-name" style="color: ${colorHex}">${displayName(r.name)}</span>
+            <span class="leaderboard-name" style="color: ${colorHex}">${displayName(r.name)}${rivalTag}</span>
             <span class="leaderboard-gap">${gapText}</span>
         `;
         container.appendChild(row);

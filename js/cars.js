@@ -181,6 +181,10 @@ export function createAICar(startIdx, offset, color, id, name) {
         lookAhead: 20 + Math.floor(Math.random() * 10),
     };
     const pitThreshold = 30.0 + Math.random() * 10.0;
+    // RIVAL difficulty picks one AI driver (id 0, so it's deterministic per seed) to dynamically
+    // pace against the player all race instead of just driving at a fixed skill level - see the
+    // rival pacing block in race.js's updateLogic().
+    const isRival = cfg.difficulty === 'rival' && id === 0;
     state.aiCars.push({
         vehicle,
         body,
@@ -201,10 +205,10 @@ export function createAICar(startIdx, offset, color, id, name) {
         pitThreshold,
         wantsToPit: false,
         inPitLane: false,
-        pitStopTimer: 0,
+        pitStartTime: 0,
         lastClosestIdx: startIdx,
-        isPitting: false,
         ghostMats: collectCarMaterials(mesh, wheels),
+        isRival,
     });
 }
 

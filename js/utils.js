@@ -10,6 +10,11 @@ export function createRNG(str) {
     };
 }
 
+export function pitEase(x) {
+    x = Math.max(0, Math.min(1, x));
+    return x * x * (3 - 2 * x);
+}
+
 export function formatTime(ms) {
     const mins = Math.floor(ms / 60000);
     const secs = Math.floor((ms % 60000) / 1000);

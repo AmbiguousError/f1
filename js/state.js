@@ -44,7 +44,7 @@ export const state = {
     // While not 'none', animate() bypasses inputs.up/left/right/brake and drives the car itself.
     pitBoxPosition: null,
     pitPhase: 'none',
-    pitTimer: 0,
+    pitStartTime: 0,
 
     aiCars: [],
 

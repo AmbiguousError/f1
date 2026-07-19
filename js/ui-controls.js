@@ -158,6 +158,9 @@ window.resetToMenu = function () {
 window.togglePause = function () {
     window.dispatchEvent(new Event('toggle-pause'));
 };
+window.restartRace = function () {
+    window.dispatchEvent(new Event('restart-race'));
+};
 window.quitToMenu = function () {
     window.dispatchEvent(new Event('quit-game'));
 };

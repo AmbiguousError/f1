@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { state, cfg, season, inputs, scratch, globalGeometries, globalMaterials } from './state.js';
 import { AI_DRIVERS, ZOOM_LEVELS, TYRE_COMPOUNDS, TYRE_COLORS, RALLY_SURFACES } from './constants.js';
-import { createRNG, formatTime } from './utils.js';
+import { createRNG, formatTime, pitEase } from './utils.js';
 import { setupAudio, updateAudio } from './audio.js';
 import {
     generateCircuit,
@@ -110,6 +110,12 @@ window.addEventListener('reset-game', () => {
     cleanup();
     resetUI();
 });
+window.addEventListener('restart-race', () => {
+    togglePause(false);
+    cleanup();
+    document.getElementById('finish-screen').style.display = 'none';
+    setTimeout(init, 50);
+});
 window.addEventListener('quit-game', () => {
     togglePause(false);
     cleanup();
@@ -167,9 +173,7 @@ function init() {
     state.nextTyreCompoundIdx = cfg.startCompound;
     state.pitBoxPosition = null;
     state.pitPhase = 'none';
-    state.pitTimer = 0;
-    state.pitConfirmed = false;
-    state.userHasSelectedPitTyre = false;
+    state.pitStartTime = 0;
     state.tempNextTyreCompoundIdx = cfg.startCompound;
     state.playerTyreStripes = [];
     const modal = document.getElementById('pit-selection-modal');
@@ -496,7 +500,7 @@ function animate() {
             // the line while driving into the pits) and clean up its HUD if it was active.
             if (state.pitPhase !== 'none') {
                 state.pitPhase = 'none';
-                state.pitTimer = 0;
+                state.pitStartTime = 0;
                 document.getElementById('pit-msg').style.display = 'none';
                 setCarGhost(state.chassisBody, state.playerGhostMats, false);
                 state.playerTyreStripes.forEach((s) => (s.visible = true));
@@ -598,137 +602,244 @@ function animate() {
                         sideEz = -tanEx / tanELen;
                     const lateral = (pos.x - p1e.x) * sideEx + (pos.z - p1e.z) * sideEz;
                     if (lateral > PIT_ENTRY_LATERAL_THRESHOLD) {
-                        state.pitPhase = 'entering';
-                        state.pitTimer = 0;
-                        state.userHasSelectedPitTyre = false;
+                        state.pitPhase = 'pitting';
+                        state.pitStartTime = Date.now();
+                        state.pitTyresApplied = false;
+                        state.pitUIShown = false;
                         setCarGhost(state.chassisBody, state.playerGhostMats, true);
-                        if (window.showPitSelectionUI) window.showPitSelectionUI();
+                        state.chassisBody.velocity.set(0, 0, 0);
+                        state.chassisBody.angularVelocity.set(0, 0, 0);
+
+                        // Capture where/how the car was facing right as it crossed the line - the
+                        // drive-in animation starts here so there's no jump-cut at entry.
+                        state.pitEntryPos = {
+                            x: state.chassisBody.position.x,
+                            y: state.chassisBody.position.y,
+                            z: state.chassisBody.position.z,
+                        };
+                        const entryQ = state.chassisBody.quaternion;
+                        state.pitEntryQuat = { x: entryQ.x, y: entryQ.y, z: entryQ.z, w: entryQ.w };
+
+                        const boxDummy = new THREE.Object3D();
+                        boxDummy.position.set(state.trackPoints[0].x, state.trackPoints[0].y, state.trackPoints[0].z);
+                        boxDummy.lookAt(state.trackPoints[5]);
+                        state.pitBoxQuat = {
+                            x: boxDummy.quaternion.x,
+                            y: boxDummy.quaternion.y,
+                            z: boxDummy.quaternion.z,
+                            w: boxDummy.quaternion.w,
+                        };
+
+                        const exitIdx = (PIT_LEN - PIT_RAMP_LEN + 10) % state.trackPoints.length;
+                        const e1 = state.trackPoints[exitIdx];
+                        const e2 = state.trackPoints[(exitIdx + 5) % state.trackPoints.length];
+                        const exitDummy = new THREE.Object3D();
+                        exitDummy.position.copy(e1);
+                        exitDummy.lookAt(e2);
+                        // Release the car still offset into the merge lane (same side = (tan.z, -tan.x)
+                        // convention as generatePitLane()/getPitLaneOffset(), not cross(tan,up)) rather
+                        // than directly on the racing line - so pit exit is a lateral merge the player
+                        // drives themselves, not a teleport straight into on-track traffic.
+                        const exitTanX = e2.x - e1.x,
+                            exitTanZ = e2.z - e1.z;
+                        const exitTanLen = Math.hypot(exitTanX, exitTanZ) || 1;
+                        const exitSideX = exitTanZ / exitTanLen,
+                            exitSideZ = -exitTanX / exitTanLen;
+                        const exitLaneOffset = getPitLaneOffset(exitIdx);
+                        state.pitExitPos = {
+                            x: e1.x + exitSideX * exitLaneOffset,
+                            y: e1.y,
+                            z: e1.z + exitSideZ * exitLaneOffset,
+                        };
+                        state.pitExitQuat = {
+                            x: exitDummy.quaternion.x,
+                            y: exitDummy.quaternion.y,
+                            z: exitDummy.quaternion.z,
+                            w: exitDummy.quaternion.w,
+                        };
+
+                        // Drive-in/out duration comes from actual distance at a believable pit-lane
+                        // pace, not a fixed time - so the car looks driven at a real speed over
+                        // whatever the pit lane geometry actually is, instead of warping to cover
+                        // however far it happens to be in a fixed window. Clamped so a freak short/
+                        // long pit lane can't make it feel instant or draggy.
+                        const PIT_DRIVE_SPEED = 70 / 3.6; // pit-lane-limit pace, matches the exit release speed below
+                        const boxPos = state.pitBoxPosition;
+                        const driveInDist = Math.hypot(boxPos.x - state.pitEntryPos.x, boxPos.z - state.pitEntryPos.z);
+                        const driveOutDist = Math.hypot(state.pitExitPos.x - boxPos.x, state.pitExitPos.z - boxPos.z);
+                        state.pitDriveInT = Math.max(0.8, Math.min(15.0, driveInDist / PIT_DRIVE_SPEED));
+                        state.pitDriveOutT = Math.max(0.8, Math.min(15.0, driveOutDist / PIT_DRIVE_SPEED));
+
+                        state.currentSteer = 0;
                     }
                 }
             }
 
             if (state.pitPhase !== 'none') {
-                // --- Pit lane autopilot: drives the car itself; inputs.up/left/right/brake are ignored ---
+                // --- Pit stop: a scripted (non-physics) animation, not a drive-through simulation.
+                // Drive-in/out each take as long as covering that distance at PIT_DRIVE_SPEED
+                // actually would (computed once at entry - see state.pitDriveInT/pitDriveOutT above)
+                // so the car looks driven at a real pace instead of warping to fit a fixed window.
+                // The tyre change itself is a fixed, real-pit-stop-like PIT_HOLD_T. Physics velocity
+                // is zeroed every frame so it can't fight the animation.
+                const PIT_DRIVE_IN_T = state.pitDriveInT;
+                const PIT_HOLD_T = 2.0;
+                const PIT_DRIVE_OUT_T = state.pitDriveOutT;
+                const PIT_EXIT_SPEED = 70 / 3.6; // pit-lane-limit pace to blend back into race speed, not a dead stop
                 const msgEl = document.getElementById('pit-msg');
-                const lookAheadIdx = (cIdx + PIT_RAMP_LEN) % state.trackPoints.length;
-                const pitOffset = getPitLaneOffset(lookAheadIdx);
-                const p1t = state.trackPoints[lookAheadIdx];
-                const p2t = state.trackPoints[(lookAheadIdx + 1) % state.trackPoints.length];
-                const tanTx = p2t.x - p1t.x,
-                    tanTz = p2t.z - p1t.z;
-                const tanTLen = Math.hypot(tanTx, tanTz) || 1;
-                const sideTx = tanTz / tanTLen,
-                    sideTz = -tanTx / tanTLen;
-                scratch.aiTargetVec.set(p1t.x + sideTx * pitOffset, p1t.y, p1t.z + sideTz * pitOffset);
-                state.chassisBody.pointToLocalFrame(scratch.aiTargetVec, scratch.aiLocalPoint);
-                const targetSteer = Math.atan2(scratch.aiLocalPoint.x, scratch.aiLocalPoint.z);
-                // Smoothly steer currentSteer toward the target (same variable manual control reads/
-                // writes) so control handback to the player never snaps the steering angle.
-                state.currentSteer += (targetSteer - state.currentSteer) * 0.15;
-                if (state.currentSteer > 1) state.currentSteer = 1;
-                if (state.currentSteer < -1) state.currentSteer = -1;
-                steering = Math.max(-0.5, Math.min(0.5, state.currentSteer));
+                msgEl.style.display = 'block';
+                msgEl.style.borderColor = '#3498db';
 
-                let desiredSpeed = 110 / 3.6; // pit lane speed limiter
-                const pdx = pos.x - state.pitBoxPosition.x;
-                const pdz = pos.z - state.pitBoxPosition.z;
-                const distToBoxSq = pdx * pdx + pdz * pdz;
+                state.chassisBody.velocity.set(0, 0, 0);
+                state.chassisBody.angularVelocity.set(0, 0, 0);
+                // Wall-clock elapsed time, not frame count: a fixed per-frame increment (e.g. 1/60)
+                // would make the stop's duration depend on the browser actually sustaining 60fps,
+                // which it won't on a slower device or a throttled/backgrounded tab - the stop would
+                // silently run in slow motion.
+                const t = (Date.now() - state.pitStartTime) / 1000;
+                const boxP = state.pitBoxPosition;
 
-                if (state.pitPhase === 'entering') {
-                    if (distToBoxSq < 900) {
-                        const dist = Math.sqrt(distToBoxSq);
-                        desiredSpeed = dist < 4.5 ? 0 : Math.min(desiredSpeed, (dist / 30.0) * (110 / 3.6));
-                        if (dist < 4.5 && kph < 1.5) {
-                            state.pitPhase = 'stopped';
-                            state.pitTimer = 0;
-                            if (!state.userHasSelectedPitTyre) {
-                                state.nextTyreCompoundIdx = state.tyreCompoundIdx;
-                                state.pitConfirmed = true;
-                                const modal = document.getElementById('pit-selection-modal');
-                                if (modal) modal.style.display = 'none';
-                            } else {
-                                state.pitConfirmed = false;
-                            }
-                        }
-                    }
-                    msgEl.style.display = 'block';
-                    msgEl.innerText = 'PIT LANE';
-                    msgEl.style.borderColor = '#3498db';
-                } else if (state.pitPhase === 'stopped') {
-                    desiredSpeed = 0;
-                    if (state.pitConfirmed) {
-                        state.pitTimer += 1 / 60;
-                        msgEl.style.display = 'block';
-                        msgEl.style.borderColor = '#3498db';
-                        if (state.pitTimer < 1.5) {
-                            const pct = Math.floor((state.pitTimer / 1.5) * 100);
-                            msgEl.innerText = `CHANGING TYRES... ${pct}%`;
-                            // Low-res "tyres being changed" visual: blink the compound stripes.
-                            const stripeOn = Math.floor(state.pitTimer * 4) % 2 === 0;
-                            state.playerTyreStripes.forEach((s) => (s.visible = stripeOn));
-                        } else {
-                            state.playerTyreStripes.forEach((s) => (s.visible = true));
-                            if (state.tyreLife < 100 || state.tyreCompoundIdx !== state.nextTyreCompoundIdx) {
-                                state.tyreLife = 100;
-                                state.tyreCompoundIdx = state.nextTyreCompoundIdx;
-                                state.playerTyreStripes.forEach((s) =>
-                                    s.material.color.setHex(TYRE_COLORS[state.tyreCompoundIdx])
-                                );
-                                const badgeEl = document.getElementById('compound-badge');
-                                if (badgeEl) {
-                                    const comp = TYRE_COMPOUNDS[state.tyreCompoundIdx];
-                                    badgeEl.innerText = comp.label;
-                                    if (state.tyreCompoundIdx === 0) {
-                                        badgeEl.style.backgroundColor = '#eb2f06';
-                                        badgeEl.style.color = '#fff';
-                                    } else if (state.tyreCompoundIdx === 1) {
-                                        badgeEl.style.backgroundColor = '#f1c40f';
-                                        badgeEl.style.color = '#000';
-                                    } else if (state.tyreCompoundIdx === 2) {
-                                        badgeEl.style.backgroundColor = '#f5f6fa';
-                                        badgeEl.style.color = '#000';
-                                    } else if (state.tyreCompoundIdx === 3) {
-                                        badgeEl.style.backgroundColor = '#2ecc71';
-                                        badgeEl.style.color = '#fff';
-                                    }
-                                }
-                            }
-                            msgEl.innerText = 'GO! GO! GO!';
-                            msgEl.style.borderColor = '#2ecc71';
-                            state.pitPhase = 'exiting';
-                        }
-                    } else {
-                        msgEl.style.display = 'block';
-                        msgEl.innerText = 'SELECT TYRES';
-                        msgEl.style.borderColor = '#e67e22';
-                    }
-                } else if (state.pitPhase === 'exiting') {
-                    msgEl.style.display = 'block';
-                    msgEl.innerText = 'REJOINING TRACK';
-                    msgEl.style.borderColor = '#3498db';
-                    let exitRelIdx = cIdx;
-                    if (exitRelIdx > cfg.trackRes / 2) exitRelIdx -= cfg.trackRes;
-                    if (exitRelIdx > PIT_LEN - PIT_RAMP_LEN) {
-                        state.pitPhase = 'none';
-                        state.pitTimer = 0;
-                        msgEl.style.display = 'none';
-                        setCarGhost(state.chassisBody, state.playerGhostMats, false);
-                    }
-                }
-
-                if (desiredSpeed === 0) {
+                if (t < PIT_DRIVE_IN_T) {
+                    const f = pitEase(t / PIT_DRIVE_IN_T);
+                    const a = state.pitEntryPos;
+                    state.chassisBody.position.set(
+                        a.x + (boxP.x - a.x) * f,
+                        a.y + (boxP.y - a.y) * f + 2,
+                        a.z + (boxP.z - a.z) * f
+                    );
+                    const qa = new THREE.Quaternion(
+                        state.pitEntryQuat.x,
+                        state.pitEntryQuat.y,
+                        state.pitEntryQuat.z,
+                        state.pitEntryQuat.w
+                    );
+                    const qb = new THREE.Quaternion(
+                        state.pitBoxQuat.x,
+                        state.pitBoxQuat.y,
+                        state.pitBoxQuat.z,
+                        state.pitBoxQuat.w
+                    );
+                    qa.slerp(qb, f);
+                    state.chassisBody.quaternion.copy(qa);
+                    msgEl.innerText = 'ENTERING PITS';
                     brakeVal = 150;
                     force = 0;
-                } else if (speed < desiredSpeed) {
-                    let speedRatio = Math.min(1.0, kph / topSpeedKph);
-                    let torqueMultiplier = 1.0 - Math.pow(speedRatio, 2);
-                    force = baseEnginePower * Math.max(0.05, torqueMultiplier) * 0.5;
-                } else if (speed > desiredSpeed + 1.0) {
-                    brakeVal = 60;
+                    steering = 0;
+                } else if (t < PIT_DRIVE_IN_T + PIT_HOLD_T) {
+                    if (!state.pitUIShown) {
+                        state.pitUIShown = true;
+                        // Show the tyre-selection modal only once the car has glided into the box,
+                        // not the instant pit entry is detected - otherwise it pops up center-screen
+                        // (right where the chase camera holds the car) and hides the drive-in
+                        // animation this whole rework was meant to make visible.
+                        if (window.showPitSelectionUI) window.showPitSelectionUI();
+                    }
+                    state.chassisBody.position.set(boxP.x, boxP.y + 2, boxP.z);
+                    const holdT = t - PIT_DRIVE_IN_T;
+                    const pct = Math.floor((holdT / PIT_HOLD_T) * 100);
+                    msgEl.innerText = `CHANGING TYRES... ${pct}%`;
+                    // Low-res "tyres being changed" visual: blink the compound stripes.
+                    const stripeOn = Math.floor(holdT * 4) % 2 === 0;
+                    state.playerTyreStripes.forEach((s) => (s.visible = stripeOn));
+                    brakeVal = 150;
                     force = 0;
+                    steering = 0;
+                } else if (t < PIT_DRIVE_IN_T + PIT_HOLD_T + PIT_DRIVE_OUT_T) {
+                    if (!state.pitTyresApplied) {
+                        state.pitTyresApplied = true;
+                        state.playerTyreStripes.forEach((s) => (s.visible = true));
+                        state.nextTyreCompoundIdx = state.tempNextTyreCompoundIdx;
+                        if (state.tyreLife < 100 || state.tyreCompoundIdx !== state.nextTyreCompoundIdx) {
+                            state.tyreLife = 100;
+                            state.tyreCompoundIdx = state.nextTyreCompoundIdx;
+                            state.playerTyreStripes.forEach((s) =>
+                                s.material.color.setHex(TYRE_COLORS[state.tyreCompoundIdx])
+                            );
+                            const badgeEl = document.getElementById('compound-badge');
+                            if (badgeEl) {
+                                const comp = TYRE_COMPOUNDS[state.tyreCompoundIdx];
+                                badgeEl.innerText = comp.label;
+                                if (state.tyreCompoundIdx === 0) {
+                                    badgeEl.style.backgroundColor = '#eb2f06';
+                                    badgeEl.style.color = '#fff';
+                                } else if (state.tyreCompoundIdx === 1) {
+                                    badgeEl.style.backgroundColor = '#f1c40f';
+                                    badgeEl.style.color = '#000';
+                                } else if (state.tyreCompoundIdx === 2) {
+                                    badgeEl.style.backgroundColor = '#f5f6fa';
+                                    badgeEl.style.color = '#000';
+                                } else if (state.tyreCompoundIdx === 3) {
+                                    badgeEl.style.backgroundColor = '#2ecc71';
+                                    badgeEl.style.color = '#fff';
+                                }
+                            }
+                        }
+                        const modal = document.getElementById('pit-selection-modal');
+                        if (modal) modal.style.display = 'none';
+                    }
+                    const f = pitEase((t - PIT_DRIVE_IN_T - PIT_HOLD_T) / PIT_DRIVE_OUT_T);
+                    const c = state.pitExitPos;
+                    state.chassisBody.position.set(
+                        boxP.x + (c.x - boxP.x) * f,
+                        boxP.y + (c.y - boxP.y) * f + 2,
+                        boxP.z + (c.z - boxP.z) * f
+                    );
+                    const qa = new THREE.Quaternion(
+                        state.pitBoxQuat.x,
+                        state.pitBoxQuat.y,
+                        state.pitBoxQuat.z,
+                        state.pitBoxQuat.w
+                    );
+                    const qb = new THREE.Quaternion(
+                        state.pitExitQuat.x,
+                        state.pitExitQuat.y,
+                        state.pitExitQuat.z,
+                        state.pitExitQuat.w
+                    );
+                    qa.slerp(qb, f);
+                    state.chassisBody.quaternion.copy(qa);
+                    msgEl.innerText = 'GO! GO! GO!';
+                    msgEl.style.borderColor = '#2ecc71';
+                    brakeVal = 150;
+                    force = 0;
+                    steering = 0;
+                } else {
+                    const c = state.pitExitPos;
+                    // Match normal ride height (spawn/reset use trackY + 1) rather than the +2 used
+                    // throughout the kinematic animation, so there's no extra height for gravity to
+                    // settle out the instant physics control resumes.
+                    state.chassisBody.position.set(c.x, c.y + 1, c.z);
+                    const qb = new THREE.Quaternion(
+                        state.pitExitQuat.x,
+                        state.pitExitQuat.y,
+                        state.pitExitQuat.z,
+                        state.pitExitQuat.w
+                    );
+                    state.chassisBody.quaternion.copy(qb);
+                    state.currentSteer = 0;
+                    setCarGhost(state.chassisBody, state.playerGhostMats, false);
+
+                    // Leave the pit lane already rolling at pit-lane pace rather than from a dead
+                    // stop, so the car blends into the race instead of getting run over from behind.
+                    const exitForward = new THREE.Vector3(0, 0, 1).applyQuaternion(qb);
+                    state.chassisBody.velocity.set(
+                        exitForward.x * PIT_EXIT_SPEED,
+                        0,
+                        exitForward.z * PIT_EXIT_SPEED
+                    );
+
+                    msgEl.innerText = 'GO! GO! GO!';
+                    msgEl.style.borderColor = '#2ecc71';
+                    state.pitPhase = 'none';
+                    state.pitStartTime = 0;
+                    setTimeout(() => {
+                        if (state.pitPhase === 'none') msgEl.style.display = 'none';
+                    }, 1000);
+                    // Don't force the max-brake/zero-engine override below on this transition frame -
+                    // it would stomp the exit velocity we just set on the very next physics step.
                 }
 
-                // Autopilot owns the car: never let a stale/held brake input arm the reset-hold timer.
+                // Pit stop owns the car: never let a stale/held brake input arm the reset-hold timer.
                 state.resetTimer = 0;
                 document.getElementById('reset-bar').style.display = 'none';
             } else if (cfg.controlStyle === 'auto') {
@@ -1072,14 +1183,11 @@ window.showPitSelectionUI = function () {
     state.tempNextTyreCompoundIdx = state.nextTyreCompoundIdx;
     const modal = document.getElementById('pit-selection-modal');
     if (modal) modal.style.display = 'block';
-    window.selectPitCompound(state.nextTyreCompoundIdx, false);
+    window.selectPitCompound(state.nextTyreCompoundIdx);
 };
 
-window.selectPitCompound = function (idx, fromUserAction = true) {
+window.selectPitCompound = function (idx) {
     state.tempNextTyreCompoundIdx = idx;
-    if (fromUserAction) {
-        state.userHasSelectedPitTyre = true;
-    }
     const colors = ['#eb2f06', '#f1c40f', '#f5f6fa', '#2ecc71'];
     const textColors = ['#fff', '#000', '#000', '#fff'];
     const ids = ['s', 'm', 'h', 'r'];
@@ -1101,7 +1209,6 @@ window.selectPitCompound = function (idx, fromUserAction = true) {
 
 window.confirmPitStop = function () {
     state.nextTyreCompoundIdx = state.tempNextTyreCompoundIdx;
-    state.pitConfirmed = true;
     const modal = document.getElementById('pit-selection-modal');
     if (modal) modal.style.display = 'none';
 };
@@ -1112,17 +1219,15 @@ window.triggerReset = function () {
 
 // Keyboard listener for pit lane tyre selection
 window.addEventListener('keydown', (e) => {
-    if (state.pitPhase !== 'entering' && (state.pitPhase !== 'stopped' || state.pitConfirmed)) return;
+    if (state.pitPhase !== 'pitting') return;
     if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
         const idx = (state.tempNextTyreCompoundIdx - 1 + 4) % 4;
-        window.selectPitCompound(idx, true);
+        window.selectPitCompound(idx);
     } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
         const idx = (state.tempNextTyreCompoundIdx + 1) % 4;
-        window.selectPitCompound(idx, true);
+        window.selectPitCompound(idx);
     } else if (e.key === 'Enter' || e.key === ' ') {
-        if (state.pitPhase === 'stopped') {
-            window.confirmPitStop();
-        }
+        window.confirmPitStop();
     }
 });
 
