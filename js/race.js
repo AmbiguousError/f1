@@ -225,7 +225,7 @@ export function updateLogic() {
         const lookAheadIdx = (cIdx + lookAheadVal) % state.trackPoints.length;
 
         // AI Pit Strategy Decision
-        if (state.raceState === 'racing' && !cfg.noTyreWear && !ai.finished && !ai.inPitLane && ai.tyreLife < ai.pitThreshold && (state.totalLaps - ai.lap) >= 1) {
+        if (state.raceState === 'racing' && state.pitBoxPosition && !cfg.noTyreWear && !ai.finished && !ai.inPitLane && ai.tyreLife < ai.pitThreshold && (state.totalLaps - ai.lap) >= 1) {
             ai.wantsToPit = true;
         }
 
