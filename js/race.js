@@ -47,7 +47,7 @@ export function getRaceStandings() {
         dist: getTotalDistCached(state.playerLastClosestIdx, state.currentLap, state.nextCheckpoint),
         driverIndex: 0,
         finished: pFinished,
-        finishTime: pFinished ? (Date.now() - state.raceStartTime) : 0,
+        finishTime: pFinished ? state.playerFinishTime : 0,
         speed: state.chassisBody ? state.chassisBody.velocity.length() : 0,
         color: cfg.teamColor
     });
@@ -117,7 +117,7 @@ export function updateFinishScreenUI(results) {
     header.innerText = "RACE RESULTS"; results.forEach((r, i) => { const pts = i < POINTS_SYSTEM.length ? POINTS_SYSTEM[i] : 0; season.drivers[r.driverIndex].points += pts; r.pts = pts; });
     document.getElementById('podium-area').appendChild(makePodium('RACE PODIUM', results.slice(0, 3).map(r => ({ name: displayName(r.name), color: season.drivers[r.driverIndex].color }))));
     list.innerHTML = ''; const winnerTime = results[0].finished ? results[0].finishTime : 0; results.forEach((r, i) => { const row = document.createElement('div'); row.className = 'result-row'; let timeStr = ""; if (r.finished) { if (i === 0) { timeStr = formatTime(r.finishTime); } else { const diff = r.finishTime - winnerTime; timeStr = `+${(diff / 1000).toFixed(2)}s`; } } else { timeStr = "--"; } row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(r.name)}</span> <div style="display:flex; gap:10px;"><span class="time-gap">${timeStr}</span><span>+${r.pts} PTS</span></div>`; list.appendChild(row); });
-    if (season.active) { seasonCol.style.display = 'block'; sub.innerText = `RACE ${season.currentRaceIdx + 1} / ${season.totalRaces} COMPLETE`; const standings = [...season.drivers].sort((a, b) => b.points - a.points); seasonList.innerHTML = ''; standings.forEach((d, i) => { const row = document.createElement('div'); row.className = 'result-row'; row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(d.name)}</span> <span>${d.points} PTS</span>`; seasonList.appendChild(row); }); if (season.currentRaceIdx >= season.totalRaces - 1) { title.innerText = "SEASON CHAMPION: " + displayName(standings[0].name).toUpperCase(); nextBtn.innerText = "MAIN MENU"; document.getElementById('podium-area').appendChild(makePodium('WORLD CHAMPIONSHIP', standings.slice(0, 3).map(d => ({ name: displayName(d.name), color: d.color })), true)); } else { title.innerText = "RACE FINISHED"; nextBtn.innerText = "START NEXT RACE"; } } else { seasonCol.style.display = 'none'; const pRank = results.findIndex(r => r.name === "Player") + 1; title.innerText = "P" + pRank + " - FINISHED"; sub.innerText = "TIME: " + formatTime(Date.now() - state.raceStartTime); nextBtn.innerText = "MAIN MENU"; }
+    if (season.active) { seasonCol.style.display = 'block'; sub.innerText = `RACE ${season.currentRaceIdx + 1} / ${season.totalRaces} COMPLETE`; const standings = [...season.drivers].sort((a, b) => b.points - a.points); seasonList.innerHTML = ''; standings.forEach((d, i) => { const row = document.createElement('div'); row.className = 'result-row'; row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(d.name)}</span> <span>${d.points} PTS</span>`; seasonList.appendChild(row); }); if (season.currentRaceIdx >= season.totalRaces - 1) { title.innerText = "SEASON CHAMPION: " + displayName(standings[0].name).toUpperCase(); nextBtn.innerText = "MAIN MENU"; document.getElementById('podium-area').appendChild(makePodium('WORLD CHAMPIONSHIP', standings.slice(0, 3).map(d => ({ name: displayName(d.name), color: d.color })), true)); } else { title.innerText = "RACE FINISHED"; nextBtn.innerText = "START NEXT RACE"; } } else { seasonCol.style.display = 'none'; const pRank = results.findIndex(r => r.name === "Player") + 1; title.innerText = "P" + pRank + " - FINISHED"; sub.innerText = "TIME: " + formatTime(state.playerFinishTime); nextBtn.innerText = "MAIN MENU"; }
 }
 
 export function updateStrategyUI() {
@@ -140,11 +140,13 @@ export function selectNextCompound(idx) {
 window.selectNextCompound = selectNextCompound;
 
 export function completeLap() {
+    if (state.raceState === 'finished') return;
     const now = Date.now(); if (now - state.startTime < 1000) return; state.currentLap++;
     if (state.currentLap > state.totalLaps) {
         state.raceState = 'finished';
+        state.playerFinishTime = Date.now() - state.raceStartTime;
         if (state.sessionType === 'qualifying') {
-            updateFinishScreenUI([{ name: "Player", dist: 0, driverIndex: 0, finished: true, finishTime: (Date.now() - state.raceStartTime) }]);
+            updateFinishScreenUI([{ name: "Player", dist: 0, driverIndex: 0, finished: true, finishTime: state.playerFinishTime }]);
         } else {
             // Let the race world breathe for a few seconds (cars keep circulating, engine
             // quiets down) before the results panel appears. Standings are re-read at show
@@ -195,7 +197,7 @@ export function updateLogic() {
 
         const distToNextCP = (pos.x - state.checkpoints[ai.nextCp].x) ** 2 + (pos.z - state.checkpoints[ai.nextCp].z) ** 2;
         // Same past-the-line plane gate as the player's checkpoint 0 (see updateLogic top).
-        if (distToNextCP < 1600) { if (ai.nextCp === 0) { const t0 = state.trackPoints[0], t1 = state.trackPoints[1]; if ((pos.x - t0.x) * (t1.x - t0.x) + (pos.z - t0.z) * (t1.z - t0.z) >= 0) { ai.lap++; ai.nextCp = 1; if (ai.lap > state.totalLaps && !ai.finished) { ai.finished = true; ai.finishTime = Date.now() - state.raceStartTime; } } } else { ai.nextCp++; if (ai.nextCp >= state.checkpoints.length) ai.nextCp = 0; } }
+        if (!ai.finished && distToNextCP < 1600) { if (ai.nextCp === 0) { const t0 = state.trackPoints[0], t1 = state.trackPoints[1]; if ((pos.x - t0.x) * (t1.x - t0.x) + (pos.z - t0.z) * (t1.z - t0.z) >= 0) { ai.lap++; ai.nextCp = 1; if (ai.lap > state.totalLaps && !ai.finished) { ai.finished = true; ai.finishTime = Date.now() - state.raceStartTime; } } } else { ai.nextCp++; if (ai.nextCp >= state.checkpoints.length) ai.nextCp = 0; } }
 
         let lookAheadVal = ai.skill.lookAhead;
         if (onSurface !== 'tarmac') { lookAheadVal = 5; }
@@ -266,8 +268,8 @@ export function updateLogic() {
 
         // Pit Lane Speed Control and Stopping in Pit Box
         if (ai.inPitLane) {
-            // Pit lane speed limit: 55 km/h
-            desiredSpeed = 55 / 3.6;
+            // Pit lane speed limit: 110 km/h
+            desiredSpeed = 110 / 3.6;
 
             // Slow down to stop in the pit box — but only while a stop is still owed;
             // once the tyre change is done (wantsToPit false) drive out at the limiter,
@@ -278,7 +280,7 @@ export function updateLogic() {
                 if (dist < 4.5) {
                     desiredSpeed = 0; // Stop
                 } else {
-                    desiredSpeed = Math.min(desiredSpeed, (dist / 15.0) * (55 / 3.6));
+                    desiredSpeed = Math.min(desiredSpeed, (dist / 15.0) * (110 / 3.6));
                 }
             }
         }
@@ -379,7 +381,13 @@ export function updateLogic() {
         const aiCurrentGrip = aiBaseGrip * gripFactor;
         ai.vehicle.wheelInfos.forEach(w => w.frictionSlip = aiCurrentGrip);
 
-        ai.vehicle.applyEngineForce(force * state.surfaceForce, 2); ai.vehicle.applyEngineForce(force * state.surfaceForce, 3);
+        if (cfg.raceStyle === 'rally') {
+            const f = force * state.surfaceForce * 0.5;
+            ai.vehicle.applyEngineForce(f, 0); ai.vehicle.applyEngineForce(f, 1);
+            ai.vehicle.applyEngineForce(f, 2); ai.vehicle.applyEngineForce(f, 3);
+        } else {
+            ai.vehicle.applyEngineForce(force * state.surfaceForce, 2); ai.vehicle.applyEngineForce(force * state.surfaceForce, 3);
+        }
         let aiAbsBrakeVal = brakeVal;
         if (Math.abs(steerVal) > 0.1) {
             aiAbsBrakeVal *= Math.max(0.4, 1.0 - Math.abs(steerVal) * 0.8);

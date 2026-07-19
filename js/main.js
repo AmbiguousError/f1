@@ -62,13 +62,29 @@ window.addEventListener('toggle-cam', () => { state.zoomLevel = (state.zoomLevel
 function resetUI() { document.getElementById('finish-screen').style.display = 'none'; document.getElementById('hud').style.display = 'none'; document.getElementById('leaderboard-hud').style.display = 'none'; document.getElementById('mute-btn').style.display = 'none'; document.getElementById('cam-btn').style.display = 'none'; document.getElementById('pause-menu').style.display = 'none'; document.getElementById('start-screen').style.display = 'flex'; const btn = document.getElementById('start-btn'); btn.innerText = "ENTER COCKPIT"; btn.disabled = false; }
 
 function init() {
-    state.rng = createRNG(cfg.seed); state.currentLap = 1; state.startTime = 0; state.raceStartTime = 0; state.bestTime = Infinity; state.nextCheckpoint = 1;
+    state.rng = createRNG(cfg.seed); state.currentLap = 1; state.startTime = 0; state.raceStartTime = 0; state.playerFinishTime = 0; state.bestTime = Infinity; state.nextCheckpoint = 1;
     state.skidmarks = []; state.trackPoints = []; state.checkpoints = []; state.visualWheels = []; state.sandTraps = []; state.aiCars = []; state.particles = [];
     state.tyreLife = 100.0; state.tyreCompoundIdx = cfg.startCompound; state.nextTyreCompoundIdx = cfg.startCompound; state.pitBoxPosition = null; state.pitPhase = 'none'; state.pitTimer = 0; state.playerTyreStripes = [];
     const surf = (cfg.raceStyle === 'rally') ? RALLY_SURFACES[cfg.surface] : RALLY_SURFACES.tarmac;
     state.surfaceGrip = surf.grip; state.surfaceForce = surf.force; state.surfaceDust = surf.dust;
 
-    setupGraphics(); setupPhysics(); generateCircuit(); generateScenery(); setupMinimap(); setupSkidmarkPool();
+    setupGraphics();
+    if (cfg.raceStyle === 'rally') {
+        if (cfg.surface === 'snow') {
+            state.skidMat.color.setHex(0xb0c4de);
+            state.skidMat.opacity = 0.45;
+        } else if (cfg.surface === 'mud') {
+            state.skidMat.color.setHex(0x3a2512);
+            state.skidMat.opacity = 0.75;
+        } else {
+            state.skidMat.color.setHex(0x111111);
+            state.skidMat.opacity = 0.6;
+        }
+    } else {
+        state.skidMat.color.setHex(0x111111);
+        state.skidMat.opacity = 0.6;
+    }
+    setupPhysics(); generateCircuit(); generateScenery(); setupMinimap(); setupSkidmarkPool();
 
     if (state.sessionType === 'qualifying') {
         state.totalLaps = 1; const spawnIdx = Math.floor(cfg.trackRes * 0.96); createF1Car(spawnIdx, true, 0);
@@ -280,14 +296,14 @@ function animate() {
                 if (state.currentSteer > 1) state.currentSteer = 1; if (state.currentSteer < -1) state.currentSteer = -1;
                 steering = Math.max(-0.5, Math.min(0.5, state.currentSteer));
 
-                let desiredSpeed = 55 / 3.6; // pit lane speed limiter
+                let desiredSpeed = 110 / 3.6; // pit lane speed limiter
                 const pdx = pos.x - state.pitBoxPosition.x; const pdz = pos.z - state.pitBoxPosition.z;
                 const distToBoxSq = pdx * pdx + pdz * pdz;
 
                 if (state.pitPhase === 'entering') {
                     if (distToBoxSq < 225) {
                         const dist = Math.sqrt(distToBoxSq);
-                        desiredSpeed = dist < 4.5 ? 0 : Math.min(desiredSpeed, (dist / 15.0) * (55 / 3.6));
+                        desiredSpeed = dist < 4.5 ? 0 : Math.min(desiredSpeed, (dist / 15.0) * (110 / 3.6));
                         if (dist < 4.5 && kph < 1.5) { state.pitPhase = 'stopped'; state.pitTimer = 0; }
                     }
                     msgEl.style.display = 'block'; msgEl.innerText = "PIT LANE"; msgEl.style.borderColor = '#3498db';
@@ -448,7 +464,13 @@ function animate() {
         // autopilot block above (state.pitPhase); there is no more separate "did the player stop
         // correctly in the box" check here.
 
-        state.vehicle.applyEngineForce(force * state.surfaceForce, 2); state.vehicle.applyEngineForce(force * state.surfaceForce, 3);
+        if (cfg.raceStyle === 'rally') {
+            const f = force * state.surfaceForce * 0.5;
+            state.vehicle.applyEngineForce(f, 0); state.vehicle.applyEngineForce(f, 1);
+            state.vehicle.applyEngineForce(f, 2); state.vehicle.applyEngineForce(f, 3);
+        } else {
+            state.vehicle.applyEngineForce(force * state.surfaceForce, 2); state.vehicle.applyEngineForce(force * state.surfaceForce, 3);
+        }
         let absBrakeVal = brakeVal;
         if (Math.abs(steering) > 0.1) {
             absBrakeVal *= Math.max(0.4, 1.0 - Math.abs(steering) * 0.8);
@@ -490,7 +512,7 @@ function animate() {
         state.chassisBody.vectorToLocalFrame(state.chassisBody.velocity, scratch.cScratch3);
         const isReversing = scratch.cScratch3.z < -0.5;
         let gearText = isReversing ? 'R' : gear; if (state.raceState === 'countdown') gearText = 'N';
-        document.getElementById('gear-val').innerText = gearText; document.getElementById('time-val').innerText = formatTime(Date.now() - state.startTime); document.getElementById('total-time-val').innerText = formatTime(Date.now() - state.raceStartTime);
+        document.getElementById('gear-val').innerText = gearText; document.getElementById('time-val').innerText = formatTime(Date.now() - state.startTime); document.getElementById('total-time-val').innerText = formatTime(state.playerFinishTime > 0 ? state.playerFinishTime : Date.now() - state.raceStartTime);
         updateLogic(); updateSkidmarks(); updateParticles(); updateMinimap();
     }
 

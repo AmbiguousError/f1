@@ -48,6 +48,9 @@ export function setupSkidmarkPool() {
 export function updateSkidmarks() {
     const speed = state.chassisBody.velocity.length();
     if (inputs.brake && speed > 10) { if (state.visualWheels[2]) addSkid(state.visualWheels[2].position); if (state.visualWheels[3]) addSkid(state.visualWheels[3].position); }
+    if (cfg.raceStyle === 'rally' && (cfg.surface === 'snow' || cfg.surface === 'mud') && speed > 2) {
+        state.visualWheels.forEach(w => { if (w) addSkid(w.position); });
+    }
 }
 
 export function addSkid(pos) {

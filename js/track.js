@@ -164,7 +164,7 @@ export function generatePitLane() {
             const standWidth = dist * 8; const standDepth = 15; const standCenter = p1.clone().add(side.clone().multiplyScalar(-trackEdge - standDepth / 2 - 5));
             if (isSpaceClear(standCenter, standDepth / 2 + trackEdge + 5.0)) {
                 const gsGroup = new THREE.Group(); gsGroup.position.copy(standCenter); gsGroup.rotation.y = Math.atan2(tan.x, tan.z) + Math.PI;
-                for (let s = 0; s < 4; s++) { const tier = new THREE.Mesh(new THREE.BoxGeometry(standDepth - (s * 3), 1, standWidth - 0.5), seatMat); tier.position.set(-(s * 1.5), s * 1 + 0.5, 0); gsGroup.add(tier); }
+                for (let s = 0; s < 4; s++) { const tier = new THREE.Mesh(new THREE.BoxGeometry(standDepth - (s * 3), 1, standWidth - 0.5), seatMat); tier.position.set(s * 1.5, s * 1 + 0.5, 0); gsGroup.add(tier); }
                 const roofGeo = new THREE.BoxGeometry(standDepth + 2, 0.5, standWidth); const roof = new THREE.Mesh(roofGeo, standRoofMat); roof.position.set(0, 8, 0); roof.rotation.z = -0.1; gsGroup.add(roof);
                 const pillarGeo = new THREE.CylinderGeometry(0.2, 0.2, 8); const p1Mesh = new THREE.Mesh(pillarGeo, structureMat); p1Mesh.position.set(-6, 4, standWidth / 3); const p2Mesh = new THREE.Mesh(pillarGeo, structureMat); p2Mesh.position.set(-6, 4, -standWidth / 3); gsGroup.add(p1Mesh); gsGroup.add(p2Mesh);
                 grandstandGroup.add(gsGroup);

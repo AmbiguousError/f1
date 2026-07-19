@@ -13,7 +13,7 @@ export const state = {
 
     trackCurve: null, trackPoints: [], checkpoints: [], sandTraps: [],
 
-    currentLap: 1, totalLaps: 5, startTime: 0, raceStartTime: 0,
+    currentLap: 1, totalLaps: 5, startTime: 0, raceStartTime: 0, playerFinishTime: 0,
     bestTime: Infinity, nextCheckpoint: 1, sessionType: 'race',
 
     tyreLife: 100.0, tyreCompoundIdx: 1, nextTyreCompoundIdx: 1,
