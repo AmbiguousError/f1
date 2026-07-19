@@ -316,7 +316,7 @@ export function updateLogic() {
                 // Low-res tyre-change visual: blink the compound stripes during the stop.
                 const stripeOn = Math.floor(ai.pitStopTimer * 4) % 2 === 0;
                 ai.tyreStripes.forEach(s => s.visible = stripeOn);
-                if (ai.pitStopTimer >= 5.0) {
+                if (ai.pitStopTimer >= 1.25) {
                     // Pit stop complete! Choose next compound strategically based on remaining laps
                     const remainingLaps = state.totalLaps - ai.lap;
                     if (remainingLaps <= 2) {

@@ -294,8 +294,8 @@ function animate() {
                 } else if (state.pitPhase === 'stopped') {
                     desiredSpeed = 0;
                     state.pitTimer += 1 / 60; msgEl.style.display = 'block'; msgEl.style.borderColor = '#3498db';
-                    if (state.pitTimer < 5.0) {
-                        const pct = Math.floor((state.pitTimer / 5.0) * 100); msgEl.innerText = `CHANGING TYRES... ${pct}%`;
+                    if (state.pitTimer < 1.25) {
+                        const pct = Math.floor((state.pitTimer / 1.25) * 100); msgEl.innerText = `CHANGING TYRES... ${pct}%`;
                         // Low-res "tyres being changed" visual: blink the compound stripes.
                         const stripeOn = Math.floor(state.pitTimer * 4) % 2 === 0;
                         state.playerTyreStripes.forEach(s => s.visible = stripeOn);
