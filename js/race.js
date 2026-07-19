@@ -242,8 +242,55 @@ export function updateLogic() {
         // Ghost while in the pit lane (no car-car collisions, semi-transparent); restore on exit.
         if (ai.inPitLane !== wasInPitLane) setCarGhost(ai.body, ai.ghostMats, ai.inPitLane);
 
-        // Determine target point with pit lane offset if in pit lane
-        let targetOffset = 0;
+        // AI Slipstream (Drafting) and Overtaking logic
+        let slipstreamActive = false;
+        let overtakeOffset = 0;
+        if (state.raceState === 'racing' && !ai.inPitLane && !ai.finished) {
+            const myPos = ai.body.position;
+            const myQuat = ai.body.quaternion;
+            const mySide = new THREE.Vector3(1, 0, 0).applyQuaternion(myQuat);
+            const myForward = new THREE.Vector3(0, 0, 1).applyQuaternion(myQuat);
+            
+            const otherCars = [];
+            if (state.chassisBody) {
+                otherCars.push({ pos: state.chassisBody.position, cIdx: state.currentTrackIdx || 0 });
+            }
+            state.aiCars.forEach(otherAi => {
+                if (otherAi !== ai) {
+                    otherCars.push({ pos: otherAi.body.position, cIdx: otherAi.cIdx });
+                }
+            });
+            
+            let closestDistSq = Infinity;
+            let closestCarAhead = null;
+            otherCars.forEach(other => {
+                let diff = other.cIdx - cIdx;
+                if (diff < -cfg.trackRes / 2) diff += cfg.trackRes;
+                else if (diff > cfg.trackRes / 2) diff -= cfg.trackRes;
+                
+                if (diff >= 3 && diff <= 25) {
+                    const distSq = myPos.distanceToSquared(other.pos);
+                    if (distSq < 1600 && distSq < closestDistSq) {
+                        closestDistSq = distSq;
+                        closestCarAhead = other;
+                    }
+                }
+            });
+            
+            if (closestCarAhead) {
+                const toOther = new THREE.Vector3().subVectors(closestCarAhead.pos, myPos);
+                const latDist = toOther.dot(mySide);
+                const longDist = toOther.dot(myForward);
+                if (Math.abs(latDist) < 4.0 && longDist > 4) {
+                    slipstreamActive = true;
+                    // Steer laterally out of the lead car's lane to overtake:
+                    overtakeOffset = latDist >= 0 ? -3.5 : 3.5;
+                }
+            }
+        }
+
+        // Determine target point with pit lane offset or overtaking offset
+        let targetOffset = overtakeOffset;
         if (ai.inPitLane) {
             targetOffset = getPitLaneOffset(lookAheadIdx);
         }
@@ -289,6 +336,11 @@ export function updateLogic() {
         // Cornering speed scaling based on steering and tyre grip
         if (Math.abs(steer) > 0.1) desiredSpeed *= (cfg.raceStyle === 'rally' ? 0.35 : 0.5) * ai.skill.cornering * gripFactor;
         if (Math.abs(steer) > 0.3) desiredSpeed *= 0.3 * gripFactor;
+
+        // Apply slipstream speed boost
+        if (slipstreamActive) {
+            desiredSpeed += 20 / 3.6;
+        }
 
         // Pit Lane Speed Control and Stopping in Pit Box
         if (ai.inPitLane) {
@@ -372,6 +424,9 @@ export function updateLogic() {
         }
 
         let baseAccelForce = cfg.carClass === 'mini' ? -3500 : (cfg.carClass === 'rally' ? -5000 : -7000);
+        if (slipstreamActive) {
+            baseAccelForce *= 1.25;
+        }
         let brakeForce = cfg.carClass === 'mini' ? 1200 : (cfg.carClass === 'rally' ? 1600 : 2000);
         let force = 0;
         let brakeVal = 0;

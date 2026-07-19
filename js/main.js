@@ -255,6 +255,49 @@ function animate() {
             let baseReversePower = cfg.carClass === 'mini' ? 2800 : (cfg.carClass === 'rally' ? 4000 : 5500);
             let reverseTopSpeedKph = cfg.carClass === 'mini' ? 70 : (cfg.carClass === 'rally' ? 85 : 100);
 
+            // Calculate Player Slipstream (Drafting)
+            let playerSlipstream = false;
+            if (state.chassisBody && state.currentTrackIdx !== undefined && state.raceState === 'racing' && state.pitPhase === 'none') {
+                const pPos = state.chassisBody.position;
+                const pQuat = state.chassisBody.quaternion;
+                const pSide = new THREE.Vector3(1, 0, 0).applyQuaternion(pQuat);
+                const pForward = new THREE.Vector3(0, 0, 1).applyQuaternion(pQuat);
+                
+                let closestAIDistSq = Infinity;
+                let closestAICarAhead = null;
+                
+                state.aiCars.forEach(ai => {
+                    let diff = ai.cIdx - state.currentTrackIdx;
+                    if (diff < -cfg.trackRes / 2) diff += cfg.trackRes;
+                    else if (diff > cfg.trackRes / 2) diff -= cfg.trackRes;
+                    
+                    if (diff >= 3 && diff <= 25) {
+                        const distSq = pPos.distanceToSquared(ai.body.position);
+                        if (distSq < 1600 && distSq < closestAIDistSq) {
+                            closestAIDistSq = distSq;
+                            closestAICarAhead = ai;
+                        }
+                    }
+                });
+                
+                if (closestAICarAhead) {
+                    const toAI = new THREE.Vector3().subVectors(closestAICarAhead.body.position, pPos);
+                    const latDist = toAI.dot(pSide);
+                    const longDist = toAI.dot(pForward);
+                    if (Math.abs(latDist) < 4.0 && longDist > 4) {
+                        playerSlipstream = true;
+                    }
+                }
+            }
+            if (playerSlipstream) {
+                baseEnginePower *= 1.25;
+                topSpeedKph += 20;
+            }
+            const slipIndicator = document.getElementById('slipstream-indicator');
+            if (slipIndicator) {
+                slipIndicator.style.display = playerSlipstream ? 'inline' : 'none';
+            }
+
             // --- Pit lane entry detection (the player's own choice/positioning, not automatic) ---
             // The pit lane only physically diverges from the main straight along its entry ramp
             // (track index i in [-PIT_LEN, -PIT_LEN+PIT_RAMP_LEN], mirroring generatePitLane()/
