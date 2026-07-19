@@ -8,7 +8,18 @@ window.setQualifying = function(val, el) { useQualifying = val; updateSelection(
 window.setDifficulty = function(diff, el) { selectedDifficulty = diff; updateSelection(el); }; window.setZoom = function(z, el) { selectedZoom = z; updateSelection(el); };
 window.setControlStyle = function(style, el) { selectedControlStyle = style; updateSelection(el); };
 window.setStartTyre = function(idx, el) { if (idx === -1) { selectedNoWear = true; selectedStartTyre = 1; } else { selectedNoWear = false; selectedStartTyre = idx; } updateSelection(el); };
-window.setStyle = function(style, el) { selectedStyle = style; document.getElementById('row-surface').style.display = style === 'rally' ? 'flex' : 'none'; updateSelection(el); };
+window.setStyle = function(style, el) { 
+    selectedStyle = style; 
+    document.getElementById('row-surface').style.display = style === 'rally' ? 'flex' : 'none'; 
+    const classRallyBtn = document.getElementById('class-rally');
+    if (classRallyBtn) {
+        classRallyBtn.style.display = style === 'rally' ? 'inline-block' : 'none';
+        if (style === 'f1' && selectedClass === 'rally') {
+            setClass('f1', document.getElementById('class-f1'));
+        }
+    }
+    updateSelection(el); 
+};
 window.setSurface = function(surface, el) { selectedSurface = surface; updateSelection(el); };
 window.setTeam = function(colorHex, el, name) { selectedTeamColor = colorHex; if (el) { el.parentNode.querySelectorAll('.team-btn').forEach(b => b.classList.remove('selected')); el.classList.add('selected'); } const display = document.getElementById('team-name-display'); if (display && name) { display.innerText = name; } };
 function updateSelection(el) { if (!el) return; const btns = el.parentNode.querySelectorAll('.opt-btn'); btns.forEach(b => b.classList.remove('selected')); el.classList.add('selected'); }

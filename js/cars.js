@@ -20,11 +20,11 @@ function collectCarMaterials(mesh, wheels) {
 }
 
 export function createAICar(startIdx, offset, color, id, name) {
-    const isMini = cfg.carClass === 'mini'; const isRally = cfg.raceStyle === 'rally'; const p1 = state.trackPoints[startIdx]; const nextIdx = (startIdx + 5) % state.trackPoints.length; const p2 = state.trackPoints[nextIdx];
+    const isMini = cfg.carClass === 'mini'; const isRally = cfg.carClass === 'rally'; const p1 = state.trackPoints[startIdx]; const nextIdx = (startIdx + 5) % state.trackPoints.length; const p2 = state.trackPoints[nextIdx];
     const tangent = new THREE.Vector3().subVectors(p2, p1).normalize(); const up = new THREE.Vector3(0, 1, 0); const side = new THREE.Vector3().crossVectors(tangent, up).normalize(); const startPos = p1.clone().add(side.multiplyScalar(offset));
-    const body = new CANNON.Body({ mass: 800 }); body.linearDamping = 0.05; body.angularDamping = 0.5;
+    const body = new CANNON.Body({ mass: isRally ? 1100 : 800 }); body.linearDamping = 0.05; body.angularDamping = 0.5;
     const colSize = isMini ? new CANNON.Vec3(0.7, 0.4, 1.2) : (isRally ? new CANNON.Vec3(0.8, 0.45, 1.4) : new CANNON.Vec3(0.8, 0.3, 2.2));
-    const shape = new CANNON.Box(colSize); body.addShape(shape, new CANNON.Vec3(0, 0.4, 0));
+    const shape = new CANNON.Box(colSize); body.addShape(shape, new CANNON.Vec3(0, isMini ? 0.2 : (isRally ? 0.2 : 0.4), 0));
     body.collisionFilterGroup = GROUP_CAR; body.collisionFilterMask = GROUP_WORLD | GROUP_CAR;
     body.position.copy(startPos); body.position.y += 1; const angle = Math.atan2(p2.x - p1.x, p2.z - p1.z); body.quaternion.setFromEuler(0, angle, 0);
 
@@ -70,13 +70,13 @@ export function createAICar(startIdx, offset, color, id, name) {
 }
 
 export function createF1Car(startIdx, flyingStart, offset = 0) {
-    const isMini = cfg.carClass === 'mini'; const isRally = cfg.raceStyle === 'rally'; const p1 = state.trackPoints[startIdx]; const nextIdx = (startIdx + 5) % state.trackPoints.length; const p2 = state.trackPoints[nextIdx];
+    const isMini = cfg.carClass === 'mini'; const isRally = cfg.carClass === 'rally'; const p1 = state.trackPoints[startIdx]; const nextIdx = (startIdx + 5) % state.trackPoints.length; const p2 = state.trackPoints[nextIdx];
     const tangent = new THREE.Vector3().subVectors(p2, p1).normalize(); const up = new THREE.Vector3(0, 1, 0); const side = new THREE.Vector3().crossVectors(tangent, up).normalize();
 
     const startPos = p1.clone().add(side.multiplyScalar(offset));
-    state.chassisBody = new CANNON.Body({ mass: 800 }); state.chassisBody.linearDamping = 0.05; state.chassisBody.angularDamping = 0.5;
+    state.chassisBody = new CANNON.Body({ mass: isRally ? 1100 : 800 }); state.chassisBody.linearDamping = 0.05; state.chassisBody.angularDamping = 0.5;
     const colSize = isMini ? new CANNON.Vec3(0.7, 0.4, 1.2) : (isRally ? new CANNON.Vec3(0.8, 0.45, 1.4) : new CANNON.Vec3(0.8, 0.3, 2.2));
-    const chassisShape = new CANNON.Box(colSize); state.chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0.4, 0));
+    const chassisShape = new CANNON.Box(colSize); state.chassisBody.addShape(chassisShape, new CANNON.Vec3(0, isMini ? 0.2 : (isRally ? 0.2 : 0.4), 0));
     state.chassisBody.collisionFilterGroup = GROUP_CAR; state.chassisBody.collisionFilterMask = GROUP_WORLD | GROUP_CAR;
     state.chassisBody.position.copy(startPos); state.chassisBody.position.y += 1; const angle = Math.atan2(p2.x - p1.x, p2.z - p1.z); state.chassisBody.quaternion.setFromEuler(0, angle, 0);
 

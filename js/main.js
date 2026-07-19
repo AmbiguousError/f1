@@ -252,10 +252,10 @@ function animate() {
             if (kph < 80) force = -3000; else if (kph > 100) brakeVal = 50; steering = state.currentSteer + (targetSteer - state.currentSteer) * 0.1; state.resetTimer = 0;
         } else {
             // Cumulative line chart style acceleration: rapid at start, plateauing at top speed
-            let baseEnginePower = cfg.carClass === 'mini' ? -4500 : -12000;
-            let topSpeedKph = cfg.carClass === 'mini' ? 180 : 340;
-            let baseReversePower = cfg.carClass === 'mini' ? 2800 : 5500;
-            let reverseTopSpeedKph = cfg.carClass === 'mini' ? 70 : 100;
+            let baseEnginePower = cfg.carClass === 'mini' ? -4500 : (cfg.carClass === 'rally' ? -7500 : -12000);
+            let topSpeedKph = cfg.carClass === 'mini' ? 180 : (cfg.carClass === 'rally' ? 240 : 340);
+            let baseReversePower = cfg.carClass === 'mini' ? 2800 : (cfg.carClass === 'rally' ? 4000 : 5500);
+            let reverseTopSpeedKph = cfg.carClass === 'mini' ? 70 : (cfg.carClass === 'rally' ? 85 : 100);
 
             // --- Pit lane entry detection (the player's own choice/positioning, not automatic) ---
             // The pit lane only physically diverges from the main straight along its entry ramp
@@ -504,7 +504,10 @@ function animate() {
         } else { state.playerFlipTimer = 0; }
 
         document.getElementById('speed-val').innerText = Math.round(kph); updateAudio(speed);
-        let gear = 1; if (cfg.carClass === 'mini') { gear = Math.min(4, Math.max(1, Math.ceil(kph / 35))); } else { gear = Math.min(8, Math.max(1, Math.ceil(kph / 45))); }
+        let gear = 1;
+        if (cfg.carClass === 'mini') { gear = Math.min(6, Math.max(1, Math.ceil(kph / 30))); }
+        else if (cfg.carClass === 'rally') { gear = Math.min(7, Math.max(1, Math.ceil(kph / 35))); }
+        else { gear = Math.min(9, Math.max(1, Math.ceil(kph / 38))); }
         // Local-frame velocity: front wheels sit at positive local z (see cars.js), so a
         // negative local z component means the car is actually moving backward, not just
         // that the reverse key is held (e.g. holding it while still rolling forward first

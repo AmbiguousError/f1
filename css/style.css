@@ -178,7 +178,7 @@ button#start-btn:hover { background: #c0392b; transform: scale(1.05); }
 #leaderboard-hud {
     position: absolute;
     left: 15px;
-    top: 105px;
+    top: 115px;
     background: rgba(10, 10, 10, 0.7);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 8px;

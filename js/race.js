@@ -263,7 +263,7 @@ export function updateLogic() {
         }
 
         // Cornering speed scaling based on steering and tyre grip
-        if (Math.abs(steer) > 0.1) desiredSpeed *= 0.5 * ai.skill.cornering * gripFactor;
+        if (Math.abs(steer) > 0.1) desiredSpeed *= (cfg.raceStyle === 'rally' ? 0.35 : 0.5) * ai.skill.cornering * gripFactor;
         if (Math.abs(steer) > 0.3) desiredSpeed *= 0.3 * gripFactor;
 
         // Pit Lane Speed Control and Stopping in Pit Box
@@ -285,7 +285,8 @@ export function updateLogic() {
             }
         }
 
-        const steerVal = Math.max(-0.5, Math.min(0.5, steer));
+        const maxSteerLimit = cfg.raceStyle === 'rally' ? 0.75 : 0.5;
+        const steerVal = Math.max(-maxSteerLimit, Math.min(maxSteerLimit, steer));
         ai.vehicle.setSteeringValue(steerVal, 0);
         ai.vehicle.setSteeringValue(steerVal, 1);
 
@@ -342,8 +343,8 @@ export function updateLogic() {
             ai.isPitting = false;
         }
 
-        let baseAccelForce = cfg.carClass === 'mini' ? -3500 : -7000;
-        let brakeForce = cfg.carClass === 'mini' ? 1200 : 2000;
+        let baseAccelForce = cfg.carClass === 'mini' ? -3500 : (cfg.carClass === 'rally' ? -5000 : -7000);
+        let brakeForce = cfg.carClass === 'mini' ? 1200 : (cfg.carClass === 'rally' ? 1600 : 2000);
         let force = 0;
         let brakeVal = 0;
 
