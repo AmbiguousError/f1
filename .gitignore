@@ -3,4 +3,15 @@
 node_modules/
 CLAUDE.md
 plans/
-.agents/skills/improve/
+.agents/
+deploy.sh
+change_request.md
+handover.md
+plan.md
+to_do.md
+package.json
+package-lock.json
+skills-lock.json
+.prettierrc
+eslint.config.js
+tests/
