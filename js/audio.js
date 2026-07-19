@@ -58,7 +58,8 @@ export function updateAudio(speed) {
     if (!state.audioCtx) return;
     const kph = speed * 3.6;
     let skidVol = 0;
-    if (kph > 30) {
+    const onLowGripSurface = cfg.raceStyle === 'rally' && (cfg.surface === 'snow' || cfg.surface === 'mud');
+    if (kph > 30 && !onLowGripSurface) {
         if (Math.abs(state.currentSteer) > 0.3 && kph > 80) skidVol = (Math.abs(state.currentSteer) - 0.3) * 0.5;
         if (inputs.brake && kph > 100) skidVol = Math.max(skidVol, 0.3);
         if (state.inSand) skidVol = 0.6;
