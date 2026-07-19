@@ -6,21 +6,31 @@ import { findClosestTrackPoint, getPitLaneOffset, teleportToTrack } from './trac
 import { spawnDust } from './effects.js';
 import { setCarGhost } from './cars.js';
 
-export function resetCar() { teleportToTrack(state.chassisBody); document.getElementById('reset-bar').style.display = 'none'; state.resetTimer = 0; }
+export function resetCar() {
+    teleportToTrack(state.chassisBody);
+    document.getElementById('reset-bar').style.display = 'none';
+    state.resetTimer = 0;
+}
 
 // The internal id "Player" is what every comparison uses; only swap in the chosen
 // display name at the point text is rendered.
-const displayName = (name) => name === "Player" ? cfg.driverName : name;
+const displayName = (name) => (name === 'Player' ? cfg.driverName : name);
 
 const PODIUM_MEDALS = ['🏆', '🥈', '🥉'];
 // top3: [{name, color}] in finishing order. Renders as 2-1-3 stepped boxes in team colors.
 function makePodium(title, top3, isChampionship) {
     const wrap = document.createElement('div');
-    const t = document.createElement('div'); t.className = 'podium-title'; t.innerText = title; wrap.appendChild(t);
-    const pod = document.createElement('div'); pod.className = 'podium' + (isChampionship ? ' champ' : '');
-    [1, 0, 2].forEach(rank => {
-        const d = top3[rank]; if (!d) return;
-        const slot = document.createElement('div'); slot.className = 'podium-slot';
+    const t = document.createElement('div');
+    t.className = 'podium-title';
+    t.innerText = title;
+    wrap.appendChild(t);
+    const pod = document.createElement('div');
+    pod.className = 'podium' + (isChampionship ? ' champ' : '');
+    [1, 0, 2].forEach((rank) => {
+        const d = top3[rank];
+        if (!d) return;
+        const slot = document.createElement('div');
+        slot.className = 'podium-slot';
         const colorHex = '#' + (d.color >>> 0).toString(16).padStart(6, '0');
         slot.innerHTML = `<div class="podium-medal">${PODIUM_MEDALS[rank]}</div><div class="podium-name">${d.name}</div><div class="podium-step step-${rank + 1}" style="background:${colorHex}">${rank + 1}</div>`;
         pod.appendChild(slot);
@@ -31,7 +41,7 @@ function makePodium(title, top3, isChampionship) {
 
 export function getRaceStandings() {
     const getTotalDistCached = (closestIdx, lap, nextCp) => {
-        let dist = ((lap - 1) * state.trackPoints.length) + closestIdx;
+        let dist = (lap - 1) * state.trackPoints.length + closestIdx;
         // Lap counters increment ~40 units BEFORE the line (checkpoint-0 trigger radius),
         // while closestIdx only wraps to 0 AT the line. In that gap — and for cars still
         // sitting behind the line at the start (nextCp starts at 1, lap 1) — a high
@@ -41,17 +51,18 @@ export function getRaceStandings() {
         }
         return dist;
     };
-    let results = []; const pFinished = state.currentLap > state.totalLaps;
+    let results = [];
+    const pFinished = state.currentLap > state.totalLaps;
     results.push({
-        name: "Player",
+        name: 'Player',
         dist: getTotalDistCached(state.playerLastClosestIdx, state.currentLap, state.nextCheckpoint),
         driverIndex: 0,
         finished: pFinished,
         finishTime: pFinished ? state.playerFinishTime : 0,
         speed: state.chassisBody ? state.chassisBody.velocity.length() : 0,
-        color: cfg.teamColor
+        color: cfg.teamColor,
     });
-    state.aiCars.forEach(ai => {
+    state.aiCars.forEach((ai) => {
         results.push({
             name: ai.name,
             dist: getTotalDistCached(ai.lastClosestIdx, ai.lap, ai.nextCp),
@@ -59,7 +70,7 @@ export function getRaceStandings() {
             finished: ai.finished,
             finishTime: ai.finishTime,
             speed: ai.body ? ai.body.velocity.length() : 0,
-            color: season.drivers[ai.id + 1] ? season.drivers[ai.id + 1].color : 0xffffff
+            color: season.drivers[ai.id + 1] ? season.drivers[ai.id + 1].color : 0xffffff,
         });
     });
     results.sort((a, b) => {
@@ -76,14 +87,25 @@ export function getRaceStandings() {
 }
 
 export function updateFinishScreenUI(results) {
-    const el = document.getElementById('finish-screen'); const title = document.getElementById('finish-title'); const sub = document.getElementById('finish-subtitle'); const list = document.getElementById('race-results-list'); const seasonList = document.getElementById('season-results-list'); const nextBtn = document.getElementById('next-btn'); const seasonCol = document.getElementById('season-col'); const header = document.getElementById('res-header-1');
+    const el = document.getElementById('finish-screen');
+    const title = document.getElementById('finish-title');
+    const sub = document.getElementById('finish-subtitle');
+    const list = document.getElementById('race-results-list');
+    const seasonList = document.getElementById('season-results-list');
+    const nextBtn = document.getElementById('next-btn');
+    const seasonCol = document.getElementById('season-col');
+    const header = document.getElementById('res-header-1');
     el.style.display = 'block';
     // Race results dock to the side so the player car stays visible; qualifying keeps
     // the centered layout (no live action worth watching behind it).
     el.classList.toggle('docked', state.sessionType !== 'qualifying');
     document.getElementById('podium-area').innerHTML = '';
     if (state.sessionType === 'qualifying') {
-        title.innerText = "QUALIFYING COMPLETE"; sub.innerText = "GRID SET FOR RACE"; header.innerText = "STARTING GRID"; nextBtn.innerText = "START RACE"; seasonCol.style.display = 'none';
+        title.innerText = 'QUALIFYING COMPLETE';
+        sub.innerText = 'GRID SET FOR RACE';
+        header.innerText = 'STARTING GRID';
+        nextBtn.innerText = 'START RACE';
+        seasonCol.style.display = 'none';
         const playerTime = results[0].finishTime;
         let avgSpeed = 65;
         if (cfg.difficulty === 'easy') avgSpeed = 50;
@@ -92,32 +114,91 @@ export function updateFinishScreenUI(results) {
         const trackLen = state.trackCurve.getLength();
         const estimatedAiTime = (trackLen / avgSpeed) * 1000;
         let qualiResults = [];
-        qualiResults.push({ name: "Player", time: playerTime, driverIndex: 0 });
+        qualiResults.push({ name: 'Player', time: playerTime, driverIndex: 0 });
         for (let i = 1; i < season.drivers.length; i++) {
             const perf = season.drivers[i].performance || 1.0;
             // AI times scaled by driver performance + smaller randomized noise
             const noise = (Math.random() - 0.5) * 2000;
-            let aiTime = (estimatedAiTime / perf) + noise;
+            let aiTime = estimatedAiTime / perf + noise;
             qualiResults.push({ name: season.drivers[i].name, time: aiTime, driverIndex: i });
         }
         qualiResults.sort((a, b) => a.time - b.time);
-        season.currentGrid = qualiResults.map(r => r.driverIndex);
+        season.currentGrid = qualiResults.map((r) => r.driverIndex);
         list.innerHTML = '';
         qualiResults.forEach((r, i) => {
             const row = document.createElement('div');
             row.className = 'result-row';
             const diff = r.time - qualiResults[0].time;
             const timeStr = i === 0 ? formatTime(r.time) : `+${(diff / 1000).toFixed(3)}`;
-            const nameStr = r.name === "Player" ? `<span style="color:#e74c3c">${displayName(r.name)}</span>` : r.name;
+            const nameStr = r.name === 'Player' ? `<span style="color:#e74c3c">${displayName(r.name)}</span>` : r.name;
             row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${nameStr}</span> <span class="time-gap">${timeStr}</span>`;
             list.appendChild(row);
         });
         return;
     }
-    header.innerText = "RACE RESULTS"; results.forEach((r, i) => { const pts = i < POINTS_SYSTEM.length ? POINTS_SYSTEM[i] : 0; season.drivers[r.driverIndex].points += pts; r.pts = pts; });
-    document.getElementById('podium-area').appendChild(makePodium('RACE PODIUM', results.slice(0, 3).map(r => ({ name: displayName(r.name), color: season.drivers[r.driverIndex].color }))));
-    list.innerHTML = ''; const winnerTime = results[0].finished ? results[0].finishTime : 0; results.forEach((r, i) => { const row = document.createElement('div'); row.className = 'result-row'; let timeStr = ""; if (r.finished) { if (i === 0) { timeStr = formatTime(r.finishTime); } else { const diff = r.finishTime - winnerTime; timeStr = `+${(diff / 1000).toFixed(2)}s`; } } else { timeStr = "--"; } row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(r.name)}</span> <div style="display:flex; gap:10px;"><span class="time-gap">${timeStr}</span><span>+${r.pts} PTS</span></div>`; list.appendChild(row); });
-    if (season.active) { seasonCol.style.display = 'block'; sub.innerText = `RACE ${season.currentRaceIdx + 1} / ${season.totalRaces} COMPLETE`; const standings = [...season.drivers].sort((a, b) => b.points - a.points); seasonList.innerHTML = ''; standings.forEach((d, i) => { const row = document.createElement('div'); row.className = 'result-row'; row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(d.name)}</span> <span>${d.points} PTS</span>`; seasonList.appendChild(row); }); if (season.currentRaceIdx >= season.totalRaces - 1) { title.innerText = "SEASON CHAMPION: " + displayName(standings[0].name).toUpperCase(); nextBtn.innerText = "MAIN MENU"; document.getElementById('podium-area').appendChild(makePodium('WORLD CHAMPIONSHIP', standings.slice(0, 3).map(d => ({ name: displayName(d.name), color: d.color })), true)); } else { title.innerText = "RACE FINISHED"; nextBtn.innerText = "START NEXT RACE"; } } else { seasonCol.style.display = 'none'; const pRank = results.findIndex(r => r.name === "Player") + 1; title.innerText = "P" + pRank + " - FINISHED"; sub.innerText = "TIME: " + formatTime(state.playerFinishTime); nextBtn.innerText = "MAIN MENU"; }
+    header.innerText = 'RACE RESULTS';
+    results.forEach((r, i) => {
+        const pts = i < POINTS_SYSTEM.length ? POINTS_SYSTEM[i] : 0;
+        season.drivers[r.driverIndex].points += pts;
+        r.pts = pts;
+    });
+    document.getElementById('podium-area').appendChild(
+        makePodium(
+            'RACE PODIUM',
+            results.slice(0, 3).map((r) => ({ name: displayName(r.name), color: season.drivers[r.driverIndex].color }))
+        )
+    );
+    list.innerHTML = '';
+    const winnerTime = results[0].finished ? results[0].finishTime : 0;
+    results.forEach((r, i) => {
+        const row = document.createElement('div');
+        row.className = 'result-row';
+        let timeStr = '';
+        if (r.finished) {
+            if (i === 0) {
+                timeStr = formatTime(r.finishTime);
+            } else {
+                const diff = r.finishTime - winnerTime;
+                timeStr = `+${(diff / 1000).toFixed(2)}s`;
+            }
+        } else {
+            timeStr = '--';
+        }
+        row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(r.name)}</span> <div style="display:flex; gap:10px;"><span class="time-gap">${timeStr}</span><span>+${r.pts} PTS</span></div>`;
+        list.appendChild(row);
+    });
+    if (season.active) {
+        seasonCol.style.display = 'block';
+        sub.innerText = `RACE ${season.currentRaceIdx + 1} / ${season.totalRaces} COMPLETE`;
+        const standings = [...season.drivers].sort((a, b) => b.points - a.points);
+        seasonList.innerHTML = '';
+        standings.forEach((d, i) => {
+            const row = document.createElement('div');
+            row.className = 'result-row';
+            row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(d.name)}</span> <span>${d.points} PTS</span>`;
+            seasonList.appendChild(row);
+        });
+        if (season.currentRaceIdx >= season.totalRaces - 1) {
+            title.innerText = 'SEASON CHAMPION: ' + displayName(standings[0].name).toUpperCase();
+            nextBtn.innerText = 'MAIN MENU';
+            document.getElementById('podium-area').appendChild(
+                makePodium(
+                    'WORLD CHAMPIONSHIP',
+                    standings.slice(0, 3).map((d) => ({ name: displayName(d.name), color: d.color })),
+                    true
+                )
+            );
+        } else {
+            title.innerText = 'RACE FINISHED';
+            nextBtn.innerText = 'START NEXT RACE';
+        }
+    } else {
+        seasonCol.style.display = 'none';
+        const pRank = results.findIndex((r) => r.name === 'Player') + 1;
+        title.innerText = 'P' + pRank + ' - FINISHED';
+        sub.innerText = 'TIME: ' + formatTime(state.playerFinishTime);
+        nextBtn.innerText = 'MAIN MENU';
+    }
 }
 
 export function updateStrategyUI() {
@@ -144,35 +225,63 @@ window.selectNextCompound = selectNextCompound;
 
 export function completeLap() {
     if (state.raceState === 'finished') return;
-    const now = Date.now(); if (now - state.startTime < 1000) return; state.currentLap++;
+    const now = Date.now();
+    if (now - state.startTime < 1000) return;
+    state.currentLap++;
     if (state.currentLap > state.totalLaps) {
         state.raceState = 'finished';
         state.playerFinishTime = Date.now() - state.raceStartTime;
         if (state.sessionType === 'qualifying') {
-            updateFinishScreenUI([{ name: "Player", dist: 0, driverIndex: 0, finished: true, finishTime: state.playerFinishTime }]);
+            updateFinishScreenUI([
+                { name: 'Player', dist: 0, driverIndex: 0, finished: true, finishTime: state.playerFinishTime },
+            ]);
         } else {
             // Let the race world breathe for a few seconds (cars keep circulating, engine
             // quiets down) before the results panel appears. Standings are re-read at show
             // time so AI cars finishing during the delay get proper finish times.
-            setTimeout(() => { if (state.isRunning && state.raceState === 'finished') updateFinishScreenUI(getRaceStandings()); }, 3000);
+            setTimeout(() => {
+                if (state.isRunning && state.raceState === 'finished') updateFinishScreenUI(getRaceStandings());
+            }, 3000);
         }
-    } else { document.getElementById('lap-val').innerText = `${state.currentLap}/${state.totalLaps}`; state.startTime = now; }
+    } else {
+        document.getElementById('lap-val').innerText = `${state.currentLap}/${state.totalLaps}`;
+        state.startTime = now;
+    }
 }
 
 export function updateLogic() {
-    const p = state.chassisBody.position; const targetCP = state.checkpoints[state.nextCheckpoint]; const dx = p.x - targetCP.x; const dy = p.y - targetCP.y; const dz = p.z - targetCP.z;
-    if (dx * dx + dy * dy + dz * dz < 1600) { // Optimized Math.sqrt away
+    const p = state.chassisBody.position;
+    const targetCP = state.checkpoints[state.nextCheckpoint];
+    const dx = p.x - targetCP.x;
+    const dy = p.y - targetCP.y;
+    const dz = p.z - targetCP.z;
+    if (dx * dx + dy * dy + dz * dz < 1600) {
+        // Optimized Math.sqrt away
         // Checkpoint 0 is the start/finish line under the arch. The 40-unit radius alone
         // would complete the lap well before the line, so additionally require the car to
         // be past the line's plane (dot of offset-from-line with the track tangent >= 0).
         if (state.nextCheckpoint === 0) {
-            const t0 = state.trackPoints[0], t1 = state.trackPoints[1];
-            if ((p.x - t0.x) * (t1.x - t0.x) + (p.z - t0.z) * (t1.z - t0.z) >= 0) { completeLap(); state.nextCheckpoint = 1; }
+            const t0 = state.trackPoints[0],
+                t1 = state.trackPoints[1];
+            if ((p.x - t0.x) * (t1.x - t0.x) + (p.z - t0.z) * (t1.z - t0.z) >= 0) {
+                completeLap();
+                state.nextCheckpoint = 1;
+            }
+        } else {
+            const flash = document.getElementById('lap-flash');
+            if (state.sessionType !== 'qualifying') {
+                if (state.nextCheckpoint === 1) flash.innerText = 'SECTOR 1';
+                else if (state.nextCheckpoint === 2) flash.innerText = 'SECTOR 2';
+                else flash.innerText = 'SECTOR';
+                flash.style.display = 'block';
+                setTimeout(() => (flash.style.display = 'none'), 1000);
+            }
+            state.nextCheckpoint++;
+            if (state.nextCheckpoint >= state.checkpoints.length) state.nextCheckpoint = 0;
         }
-        else { const flash = document.getElementById('lap-flash'); if (state.sessionType !== 'qualifying') { if (state.nextCheckpoint === 1) flash.innerText = "SECTOR 1"; else if (state.nextCheckpoint === 2) flash.innerText = "SECTOR 2"; else flash.innerText = "SECTOR"; flash.style.display = 'block'; setTimeout(() => flash.style.display = 'none', 1000); } state.nextCheckpoint++; if (state.nextCheckpoint >= state.checkpoints.length) state.nextCheckpoint = 0; }
     }
 
-    state.aiCars.forEach(ai => {
+    state.aiCars.forEach((ai) => {
         ai.lastClosestIdx = findClosestTrackPoint(ai.body.position, ai.lastClosestIdx);
         const cIdx = ai.lastClosestIdx;
         const pos = ai.body.position;
@@ -184,23 +293,62 @@ export function updateLogic() {
         if (minD > 81) {
             for (let trap of state.sandTraps) {
                 const distSq = (pos.x - trap.pos.x) ** 2 + (pos.z - trap.pos.z) ** 2;
-                if (distSq < trap.r * trap.r && Math.abs(pos.y - trap.pos.y) < 3.0) { onSurface = 'sand'; break; }
+                if (distSq < trap.r * trap.r && Math.abs(pos.y - trap.pos.y) < 3.0) {
+                    onSurface = 'sand';
+                    break;
+                }
             }
             if (onSurface !== 'sand' && minD > 400) onSurface = 'grass';
         }
 
-        if (onSurface !== 'tarmac') { ai.offTrackTimer += 1 / 60; if (ai.offTrackTimer > 2.0) { teleportToTrack(ai.body); ai.offTrackTimer = 0; return; } } else { ai.offTrackTimer = 0; }
+        if (onSurface !== 'tarmac') {
+            ai.offTrackTimer += 1 / 60;
+            if (ai.offTrackTimer > 2.0) {
+                teleportToTrack(ai.body);
+                ai.offTrackTimer = 0;
+                return;
+            }
+        } else {
+            ai.offTrackTimer = 0;
+        }
 
         // Flip/crash recovery: off-track detection above only fires on lateral drift, so a car
         // rolled onto its roof/side while still near the racing line would otherwise sit stuck
         // there forever. up.y is the world-space Y of the car's local up vector: 1 = upright,
         // <=0 = on its side or upside down.
-        scratch.flipUpVec.set(0, 1, 0); ai.body.quaternion.vmult(scratch.flipUpVec, scratch.flipUpVec);
-        if (scratch.flipUpVec.y < 0.2) { ai.flipTimer += 1 / 60; if (ai.flipTimer > 2.0) { teleportToTrack(ai.body); ai.flipTimer = 0; return; } } else { ai.flipTimer = 0; }
+        scratch.flipUpVec.set(0, 1, 0);
+        ai.body.quaternion.vmult(scratch.flipUpVec, scratch.flipUpVec);
+        if (scratch.flipUpVec.y < 0.2) {
+            ai.flipTimer += 1 / 60;
+            if (ai.flipTimer > 2.0) {
+                teleportToTrack(ai.body);
+                ai.flipTimer = 0;
+                return;
+            }
+        } else {
+            ai.flipTimer = 0;
+        }
 
-        const distToNextCP = (pos.x - state.checkpoints[ai.nextCp].x) ** 2 + (pos.z - state.checkpoints[ai.nextCp].z) ** 2;
+        const distToNextCP =
+            (pos.x - state.checkpoints[ai.nextCp].x) ** 2 + (pos.z - state.checkpoints[ai.nextCp].z) ** 2;
         // Same past-the-line plane gate as the player's checkpoint 0 (see updateLogic top).
-        if (!ai.finished && distToNextCP < 1600) { if (ai.nextCp === 0) { const t0 = state.trackPoints[0], t1 = state.trackPoints[1]; if ((pos.x - t0.x) * (t1.x - t0.x) + (pos.z - t0.z) * (t1.z - t0.z) >= 0) { ai.lap++; ai.nextCp = 1; if (ai.lap > state.totalLaps && !ai.finished) { ai.finished = true; ai.finishTime = Date.now() - state.raceStartTime; } } } else { ai.nextCp++; if (ai.nextCp >= state.checkpoints.length) ai.nextCp = 0; } }
+        if (!ai.finished && distToNextCP < 1600) {
+            if (ai.nextCp === 0) {
+                const t0 = state.trackPoints[0],
+                    t1 = state.trackPoints[1];
+                if ((pos.x - t0.x) * (t1.x - t0.x) + (pos.z - t0.z) * (t1.z - t0.z) >= 0) {
+                    ai.lap++;
+                    ai.nextCp = 1;
+                    if (ai.lap > state.totalLaps && !ai.finished) {
+                        ai.finished = true;
+                        ai.finishTime = Date.now() - state.raceStartTime;
+                    }
+                }
+            } else {
+                ai.nextCp++;
+                if (ai.nextCp >= state.checkpoints.length) ai.nextCp = 0;
+            }
+        }
 
         let lookAheadVal = ai.skill.lookAhead;
         if (state.trackPoints.length > 20) {
@@ -220,18 +368,30 @@ export function updateLogic() {
                 lookAheadVal = Math.round(10 + curveFactor * (lookAheadVal - 10));
             }
         }
-        if (onSurface !== 'tarmac') { lookAheadVal = 5; }
-        if (cfg.weather === 'wet') { lookAheadVal = Math.max(10, lookAheadVal - 5); }
+        if (onSurface !== 'tarmac') {
+            lookAheadVal = 5;
+        }
+        if (cfg.weather === 'wet') {
+            lookAheadVal = Math.max(10, lookAheadVal - 5);
+        }
         const lookAheadIdx = (cIdx + lookAheadVal) % state.trackPoints.length;
 
         // AI Pit Strategy Decision
-        if (state.raceState === 'racing' && state.pitBoxPosition && !cfg.noTyreWear && !ai.finished && !ai.inPitLane && ai.tyreLife < ai.pitThreshold && (state.totalLaps - ai.lap) >= 1) {
+        if (
+            state.raceState === 'racing' &&
+            state.pitBoxPosition &&
+            !cfg.noTyreWear &&
+            !ai.finished &&
+            !ai.inPitLane &&
+            ai.tyreLife < ai.pitThreshold &&
+            state.totalLaps - ai.lap >= 1
+        ) {
             ai.wantsToPit = true;
         }
 
         // AI Pit Area Detection and State
         const wasInPitLane = ai.inPitLane;
-        let inPitArea = (cIdx >= cfg.trackRes - 60 || cIdx <= 60);
+        let inPitArea = cIdx >= cfg.trackRes - 60 || cIdx <= 60;
         if (inPitArea) {
             if (ai.wantsToPit || ai.inPitLane) {
                 ai.inPitLane = true;
@@ -250,24 +410,24 @@ export function updateLogic() {
             const myQuat = ai.body.quaternion;
             const mySide = new THREE.Vector3(1, 0, 0).applyQuaternion(myQuat);
             const myForward = new THREE.Vector3(0, 0, 1).applyQuaternion(myQuat);
-            
+
             const otherCars = [];
             if (state.chassisBody) {
                 otherCars.push({ pos: state.chassisBody.position, cIdx: state.playerLastClosestIdx || 0 });
             }
-            state.aiCars.forEach(otherAi => {
+            state.aiCars.forEach((otherAi) => {
                 if (otherAi !== ai) {
                     otherCars.push({ pos: otherAi.body.position, cIdx: otherAi.lastClosestIdx });
                 }
             });
-            
+
             let closestDistSq = Infinity;
             let closestCarAhead = null;
-            otherCars.forEach(other => {
+            otherCars.forEach((other) => {
                 let diff = other.cIdx - cIdx;
                 if (diff < -cfg.trackRes / 2) diff += cfg.trackRes;
                 else if (diff > cfg.trackRes / 2) diff -= cfg.trackRes;
-                
+
                 if (diff >= 3 && diff <= 25) {
                     const dx = other.pos.x - myPos.x;
                     const dy = other.pos.y - myPos.y;
@@ -279,7 +439,7 @@ export function updateLogic() {
                     }
                 }
             });
-            
+
             if (closestCarAhead) {
                 const toOther = new THREE.Vector3().subVectors(closestCarAhead.pos, myPos);
                 const latDist = toOther.dot(mySide);
@@ -328,7 +488,7 @@ export function updateLogic() {
 
         // Reduce top speed slightly if tyres are worn (less traction out of corners)
         if (ai.tyreLife < 50) {
-            desiredSpeed *= (0.9 + 0.1 * (ai.tyreLife / 50));
+            desiredSpeed *= 0.9 + 0.1 * (ai.tyreLife / 50);
         }
 
         if (cfg.weather === 'wet') {
@@ -337,7 +497,8 @@ export function updateLogic() {
         }
 
         // Cornering speed scaling based on steering and tyre grip
-        if (Math.abs(steer) > 0.1) desiredSpeed *= (cfg.raceStyle === 'rally' ? 0.35 : 0.5) * ai.skill.cornering * gripFactor;
+        if (Math.abs(steer) > 0.1)
+            desiredSpeed *= (cfg.raceStyle === 'rally' ? 0.35 : 0.5) * ai.skill.cornering * gripFactor;
         if (Math.abs(steer) > 0.3) desiredSpeed *= 0.3 * gripFactor;
 
         // Apply slipstream speed boost
@@ -377,15 +538,16 @@ export function updateLogic() {
             if (aiOnSurface === 'sand') aiSurfaceMultiplier = 2.5;
             else if (aiOnSurface === 'grass') aiSurfaceMultiplier = 1.8;
 
-            const aiBaseWearRate = (aiSpeed * 0.00015) + (Math.abs(steerVal) * aiSpeed * 0.0006);
-            const aiWearRate = aiBaseWearRate * aiCompound.wear * aiSurfaceMultiplier * 0.25;
+            const aiBaseWearRate = aiSpeed * 0.00015 + Math.abs(steerVal) * aiSpeed * 0.0006;
+            const aiWearRate = aiBaseWearRate * aiCompound.wear * aiSurfaceMultiplier * 0.72;
             ai.tyreLife -= aiWearRate;
             if (ai.tyreLife < 0) ai.tyreLife = 0;
         }
 
         // AI Pit Stop Execution
         if (state.pitBoxPosition && state.raceState === 'racing' && !ai.finished && ai.inPitLane) {
-            const adx = pos.x - state.pitBoxPosition.x; const adz = pos.z - state.pitBoxPosition.z;
+            const adx = pos.x - state.pitBoxPosition.x;
+            const adz = pos.z - state.pitBoxPosition.z;
             const distToPitBoxSq = adx * adx + adz * adz;
             // wantsToPit/isPitting gate: without it, a car accelerating away from its finished
             // stop is still slow + near the box and would immediately begin another stop.
@@ -397,7 +559,7 @@ export function updateLogic() {
                 ai.pitStopTimer += 1 / 60;
                 // Low-res tyre-change visual: blink the compound stripes during the stop.
                 const stripeOn = Math.floor(ai.pitStopTimer * 4) % 2 === 0;
-                ai.tyreStripes.forEach(s => s.visible = stripeOn);
+                ai.tyreStripes.forEach((s) => (s.visible = stripeOn));
                 if (ai.pitStopTimer >= 1.5) {
                     // Pit stop complete! Choose next compound strategically
                     if (cfg.raceStyle === 'rally' && (cfg.surface === 'snow' || cfg.surface === 'mud')) {
@@ -413,24 +575,27 @@ export function updateLogic() {
                         }
                     }
                     ai.tyreLife = 100.0;
-                    ai.tyreStripes.forEach(s => { s.material.color.setHex(TYRE_COLORS[ai.compoundIdx]); s.visible = true; });
+                    ai.tyreStripes.forEach((s) => {
+                        s.material.color.setHex(TYRE_COLORS[ai.compoundIdx]);
+                        s.visible = true;
+                    });
                     ai.wantsToPit = false;
                     ai.isPitting = false;
                 }
             } else {
-                if (ai.isPitting) ai.tyreStripes.forEach(s => s.visible = true);
+                if (ai.isPitting) ai.tyreStripes.forEach((s) => (s.visible = true));
                 ai.isPitting = false;
             }
         } else {
-            if (ai.isPitting) ai.tyreStripes.forEach(s => s.visible = true);
+            if (ai.isPitting) ai.tyreStripes.forEach((s) => (s.visible = true));
             ai.isPitting = false;
         }
 
-        let baseAccelForce = cfg.carClass === 'mini' ? -3500 : (cfg.carClass === 'rally' ? -5000 : -7000);
+        let baseAccelForce = cfg.carClass === 'mini' ? -3500 : cfg.carClass === 'rally' ? -5000 : -7000;
         if (slipstreamActive) {
             baseAccelForce *= 1.25;
         }
-        let brakeForce = cfg.carClass === 'mini' ? 1200 : (cfg.carClass === 'rally' ? 1600 : 2000);
+        let brakeForce = cfg.carClass === 'mini' ? 1200 : cfg.carClass === 'rally' ? 1600 : 2000;
         let force = 0;
         let brakeVal = 0;
 
@@ -449,16 +614,30 @@ export function updateLogic() {
             force = 0;
         }
 
-        const distToPlayerSq = (pos.x - state.chassisBody.position.x) ** 2 + (pos.y - state.chassisBody.position.y) ** 2 + (pos.z - state.chassisBody.position.z) ** 2;
+        const distToPlayerSq =
+            (pos.x - state.chassisBody.position.x) ** 2 +
+            (pos.y - state.chassisBody.position.y) ** 2 +
+            (pos.z - state.chassisBody.position.z) ** 2;
         if (distToPlayerSq < 64) {
             brakeVal = Math.max(brakeVal, 100);
             force = 0;
         }
 
-        if (onSurface === 'sand') { force *= 0.7; ai.body.velocity.scale(0.98, ai.body.velocity); spawnDust(pos, 0xd2b48c); }
-        else if (onSurface === 'grass') { force *= 0.7; ai.body.velocity.scale(0.98, ai.body.velocity); if (speed > 5) spawnDust(pos, 0x2e8b57); }
-        if (cfg.weather === 'wet' && onSurface === 'tarmac' && speed > 20) { if (Math.random() > 0.7) spawnDust(pos, 0xffffff); }
-        if (state.surfaceDust !== null && onSurface === 'tarmac' && speed > 15) { if (Math.random() > 0.7) spawnDust(pos, state.surfaceDust); }
+        if (onSurface === 'sand') {
+            force *= 0.7;
+            ai.body.velocity.scale(0.98, ai.body.velocity);
+            spawnDust(pos, 0xd2b48c);
+        } else if (onSurface === 'grass') {
+            force *= 0.7;
+            ai.body.velocity.scale(0.98, ai.body.velocity);
+            if (speed > 5) spawnDust(pos, 0x2e8b57);
+        }
+        if (cfg.weather === 'wet' && onSurface === 'tarmac' && speed > 20) {
+            if (Math.random() > 0.7) spawnDust(pos, 0xffffff);
+        }
+        if (state.surfaceDust !== null && onSurface === 'tarmac' && speed > 15) {
+            if (Math.random() > 0.7) spawnDust(pos, state.surfaceDust);
+        }
 
         let isBraking = brakeVal > 0;
         ai.isBraking = brakeVal > 30;
@@ -467,24 +646,37 @@ export function updateLogic() {
         // Update AI wheel friction based on current tyre compound & wear
         const aiBaseGrip = cfg.weather === 'wet' ? 2.0 : 4.8;
         const aiCurrentGrip = aiBaseGrip * gripFactor;
-        ai.vehicle.wheelInfos.forEach(w => w.frictionSlip = aiCurrentGrip);
+        ai.vehicle.wheelInfos.forEach((w) => (w.frictionSlip = aiCurrentGrip));
 
         if (cfg.raceStyle === 'rally') {
             const f = force * state.surfaceForce * 0.5;
-            ai.vehicle.applyEngineForce(f, 0); ai.vehicle.applyEngineForce(f, 1);
-            ai.vehicle.applyEngineForce(f, 2); ai.vehicle.applyEngineForce(f, 3);
+            ai.vehicle.applyEngineForce(f, 0);
+            ai.vehicle.applyEngineForce(f, 1);
+            ai.vehicle.applyEngineForce(f, 2);
+            ai.vehicle.applyEngineForce(f, 3);
         } else {
-            ai.vehicle.applyEngineForce(force * state.surfaceForce, 2); ai.vehicle.applyEngineForce(force * state.surfaceForce, 3);
+            ai.vehicle.applyEngineForce(force * state.surfaceForce, 2);
+            ai.vehicle.applyEngineForce(force * state.surfaceForce, 3);
         }
         let aiAbsBrakeVal = brakeVal;
         if (Math.abs(steerVal) > 0.1) {
             aiAbsBrakeVal *= Math.max(0.4, 1.0 - Math.abs(steerVal) * 0.8);
         }
-        ai.vehicle.setBrake(aiAbsBrakeVal, 0); ai.vehicle.setBrake(aiAbsBrakeVal, 1);
-        ai.vehicle.setBrake(aiAbsBrakeVal * 0.5, 2); ai.vehicle.setBrake(aiAbsBrakeVal * 0.5, 3);
+        ai.vehicle.setBrake(aiAbsBrakeVal, 0);
+        ai.vehicle.setBrake(aiAbsBrakeVal, 1);
+        ai.vehicle.setBrake(aiAbsBrakeVal * 0.5, 2);
+        ai.vehicle.setBrake(aiAbsBrakeVal * 0.5, 3);
 
-        if (ai.body.userData.mesh) { ai.body.userData.mesh.position.copy(ai.body.position); ai.body.userData.mesh.quaternion.copy(ai.body.quaternion); }
-        for (let i = 0; i < 4; i++) { ai.vehicle.updateWheelTransform(i); const t = ai.vehicle.wheelInfos[i].worldTransform; ai.wheels[i].position.copy(t.position); ai.wheels[i].quaternion.copy(t.quaternion); }
+        if (ai.body.userData.mesh) {
+            ai.body.userData.mesh.position.copy(ai.body.position);
+            ai.body.userData.mesh.quaternion.copy(ai.body.quaternion);
+        }
+        for (let i = 0; i < 4; i++) {
+            ai.vehicle.updateWheelTransform(i);
+            const t = ai.vehicle.wheelInfos[i].worldTransform;
+            ai.wheels[i].position.copy(t.position);
+            ai.wheels[i].quaternion.copy(t.quaternion);
+        }
 
         // Flat baseline term matches the player's grip-at-launch fix (see main.js).
         scratch.downforceVec.set(0, -(speed * speed * 2 + 1500), 0);
@@ -494,7 +686,7 @@ export function updateLogic() {
     if (state.raceState === 'racing') {
         if (state.sessionType !== 'qualifying') {
             const rankings = getRaceStandings();
-            const playerRank = rankings.findIndex(r => r.name === "Player") + 1;
+            const playerRank = rankings.findIndex((r) => r.name === 'Player') + 1;
             document.getElementById('pos-val').innerText = `${playerRank}/${state.aiCars.length + 1}`;
             updateLiveLeaderboard(rankings);
         }

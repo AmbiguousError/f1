@@ -1,211 +1,366 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>F1 Circuit Gen - Stadium & Illumination</title>
-    <link rel="stylesheet" href="css/style.css">
-</head>
-<body>
-    <div id="start-screen">
-        <h1 style="color:white; font-size: 48px; margin:0 0 10px 0; font-style: italic; letter-spacing: -2px;">FORMULA <span style="color:#e74c3c">GEN</span></h1>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <title>F1 Circuit Gen - Stadium & Illumination</title>
+        <link rel="stylesheet" href="css/style.css" />
+    </head>
+    <body>
+        <div id="start-screen">
+            <h1 style="color: white; font-size: 48px; margin: 0 0 10px 0; font-style: italic; letter-spacing: -2px">
+                FORMULA <span style="color: #e74c3c">GEN</span>
+            </h1>
 
-        <div class="menu-row">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">MODE</span>
-            <button class="opt-btn selected" id="mode-single" onclick="setMode('single', this)">SINGLE GP</button>
-            <button class="opt-btn" id="mode-season" onclick="setMode('season', this)">SEASON</button>
-        </div>
-        <div class="menu-row">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">CLASS</span>
-            <button class="opt-btn selected" id="class-f1" onclick="setClass('f1', this)">F1</button>
-            <button class="opt-btn" id="class-mini" onclick="setClass('mini', this)">MINI</button>
-            <button class="opt-btn" id="class-rally" onclick="setClass('rally', this)">RALLY</button>
-        </div>
-        <div class="menu-row">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">DRIVER</span>
-            <input type="text" id="driver-name-input" value="" maxlength="12" placeholder="PLAYER" style="width: 140px; font-size: 14px;">
-        </div>
-        <div class="menu-row">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">TEAM</span>
-            <button class="team-btn" style="background:#dc0000" title="Ferrari" onclick="setTeam(0xdc0000, this, 'Ferrari')"></button>
-            <button class="team-btn" style="background:#000080" title="Red Bull" onclick="setTeam(0x000080, this, 'Red Bull')"></button>
-            <button class="team-btn" style="background:#00d2be" title="Mercedes" onclick="setTeam(0x00d2be, this, 'Mercedes')"></button>
-            <button class="team-btn selected" style="background:#ff8700" title="McLaren" onclick="setTeam(0xff8700, this, 'McLaren')"></button>
-            <button class="team-btn" style="background:#006f62" title="Aston Martin" onclick="setTeam(0x006f62, this, 'Aston Martin')"></button>
-            <button class="team-btn" style="background:#0090ff" title="Alpine" onclick="setTeam(0x0090ff, this, 'Alpine')"></button>
-            <button class="team-btn" style="background:#005aff" title="Williams" onclick="setTeam(0x005aff, this, 'Williams')"></button>
-            <span id="team-name-display" style="color:#aaa; font-family:monospace; font-size:12px; min-width: 90px; margin-left: 5px;">McLaren</span>
-        </div>
-        <div class="menu-row">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">TYRES</span>
-            <button class="opt-btn" onclick="setStartTyre(0, this)">SOFT</button>
-            <button class="opt-btn selected" onclick="setStartTyre(1, this)">MED</button>
-            <button class="opt-btn" onclick="setStartTyre(2, this)">HARD</button>
-            <button class="opt-btn" onclick="setStartTyre(3, this)">RALLY</button>
-            <button class="opt-btn" onclick="setStartTyre(-1, this)">NO WEAR</button>
-        </div>
-        <div id="row-seed" class="menu-row" style="flex-direction:column; gap:4px;">
             <div class="menu-row">
-                <span style="color:#aaa; font-size: 12px; letter-spacing: 2px;">CIRCUIT SEED</span>
-                <input type="text" id="seed-input" value="MONZA" maxlength="12">
-                <button class="opt-btn" onclick="randomizeSeed()">RANDOM</button>
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">MODE</span>
+                <button class="opt-btn selected" id="mode-single" onclick="setMode('single', this)">SINGLE GP</button>
+                <button class="opt-btn" id="mode-season" onclick="setMode('season', this)">SEASON</button>
             </div>
-            <div style="color:#666; font-size: 10px; letter-spacing: 1px; text-align:center; max-width: 360px;">REAL CIRCUITS: MONZA &middot; SPA &middot; MONACO &middot; SILVERSTONE &middot; INTERLAGOS &middot; SUZUKA &middot; COTA &middot; ZANDVOORT &middot; BAKU &middot; SINGAPORE</div>
-        </div>
-        <div id="row-races" class="menu-row" style="display:none;">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">RACES</span>
-            <button class="opt-btn selected" onclick="setRaces(3, this)">3</button>
-            <button class="opt-btn" onclick="setRaces(5, this)">5</button>
-            <button class="opt-btn" onclick="setRaces(10, this)">10</button>
-        </div>
-        <div class="menu-row">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">CARS</span>
-            <button class="opt-btn" onclick="setCars(6, this)">6</button>
-            <button class="opt-btn" onclick="setCars(10, this)">10</button>
-            <button class="opt-btn selected" onclick="setCars(12, this)">12</button>
-        </div>
-        <div class="menu-row">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">AI</span>
-            <button class="opt-btn" onclick="setDifficulty('easy', this)">EASY</button>
-            <button class="opt-btn" onclick="setDifficulty('medium', this)">MED</button>
-            <button class="opt-btn selected" onclick="setDifficulty('hard', this)">HARD</button>
-        </div>
-        <div class="menu-row">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">ZOOM</span>
-            <button class="opt-btn" onclick="setZoom(0, this)">CLOSE</button>
-            <button class="opt-btn selected" onclick="setZoom(1, this)">MID</button>
-            <button class="opt-btn" onclick="setZoom(2, this)">FAR</button>
-        </div>
-        <div class="menu-row">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">LAPS</span>
-            <button class="opt-btn selected" onclick="setLaps(3, this)">3</button>
-            <button class="opt-btn" onclick="setLaps(5, this)">5</button>
-            <button class="opt-btn" onclick="setLaps(10, this)">10</button>
-        </div>
-        <div class="menu-row">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">TIME</span>
-            <button class="opt-btn selected" onclick="setTime('day', this)">DAY</button>
-            <button class="opt-btn" onclick="setTime('sunset', this)">SUNSET</button>
-        </div>
-        <div class="menu-row">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">WEATHER</span>
-            <button class="opt-btn selected" onclick="setWeather('dry', this)">DRY</button>
-            <button class="opt-btn" onclick="setWeather('wet', this)">WET</button>
-        </div>
-        <div class="menu-row">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">QUALIFY</span>
-            <button class="opt-btn" onclick="setQualifying(true, this)">ON</button>
-            <button class="opt-btn selected" onclick="setQualifying(false, this)">OFF</button>
-        </div>
-        <div class="menu-row">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">CONTROLS</span>
-            <button class="opt-btn" onclick="setControlStyle('manual', this)">MANUAL</button>
-            <button class="opt-btn selected" onclick="setControlStyle('auto', this)">AUTO ACCEL</button>
-        </div>
-        <div class="menu-row">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">STYLE</span>
-            <button class="opt-btn selected" onclick="setStyle('f1', this)">F1</button>
-            <button class="opt-btn" onclick="setStyle('rally', this)">RALLY</button>
-        </div>
-        <div class="menu-row" id="row-surface" style="display:none;">
-            <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">SURFACE</span>
-            <button class="opt-btn selected" onclick="setSurface('tarmac', this)">TARMAC</button>
-            <button class="opt-btn" onclick="setSurface('snow', this)">SNOW</button>
-            <button class="opt-btn" onclick="setSurface('mud', this)">MUD</button>
-        </div>
-        <button id="start-btn" onclick="startGame()">ENTER COCKPIT</button>
-        <button id="guide-btn" onclick="showGuide()">HOW TO PLAY</button>
-    </div>
-
-    <div id="guide-screen">
-        <h1>RACE MANUAL</h1>
-        <div class="guide-content">
-            <div class="guide-section">
-                <h3>CONTROLS (MANUAL)</h3>
-                <p><span class="key">W</span> / <span class="key">↑</span> ACCELERATE</p>
-                <p><span class="key">SPC</span> BRAKE / STOP</p>
-                <p><span class="key">S</span> / <span class="key">↓</span> REVERSE</p>
-                <p><span class="key">A</span> / <span class="key">←</span> STEER LEFT</p>
-                <p><span class="key">D</span> / <span class="key">→</span> STEER RIGHT</p>
-                <p><span class="key">SPC</span> (HOLD) RESET</p>
-                <p><span class="key">ESC</span> PAUSE</p>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">CLASS</span>
+                <button class="opt-btn selected" id="class-f1" onclick="setClass('f1', this)">F1</button>
+                <button class="opt-btn" id="class-mini" onclick="setClass('mini', this)">MINI</button>
+                <button class="opt-btn" id="class-rally" onclick="setClass('rally', this)">RALLY</button>
             </div>
-            <div class="guide-section">
-                <h3>CONTROLS (AUTO ACCEL)</h3>
-                <p>Car drives forward on its own.</p>
-                <p><span class="key">SPC</span> BRAKE, hold at a stop to REVERSE</p>
-                <p><span class="key">A</span> / <span class="key">←</span> STEER LEFT</p>
-                <p><span class="key">D</span> / <span class="key">→</span> STEER RIGHT</p>
-                <p>Select this mode from CONTROLS on the start screen.</p>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">DRIVER</span>
+                <input
+                    type="text"
+                    id="driver-name-input"
+                    value=""
+                    maxlength="12"
+                    placeholder="PLAYER"
+                    style="width: 140px; font-size: 14px"
+                />
             </div>
-            <div class="guide-section">
-                <h3>GAME MODES</h3>
-                <p><strong>SINGLE GP:</strong> Race on a specific seed.</p>
-                <p><strong>SEASON:</strong> Compete in a multi-race championship.</p>
-                <p><strong>QUALIFYING:</strong> Optional flying lap to set grid position.</p>
-                <p><strong>PIT STOPS:</strong> Stop in the box on the start straight to change tyres.</p>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">TEAM</span>
+                <button
+                    class="team-btn"
+                    style="background: #dc0000"
+                    title="Ferrari"
+                    onclick="setTeam(0xdc0000, this, 'Ferrari')"
+                ></button>
+                <button
+                    class="team-btn"
+                    style="background: #000080"
+                    title="Red Bull"
+                    onclick="setTeam(0x000080, this, 'Red Bull')"
+                ></button>
+                <button
+                    class="team-btn"
+                    style="background: #00d2be"
+                    title="Mercedes"
+                    onclick="setTeam(0x00d2be, this, 'Mercedes')"
+                ></button>
+                <button
+                    class="team-btn selected"
+                    style="background: #ff8700"
+                    title="McLaren"
+                    onclick="setTeam(0xff8700, this, 'McLaren')"
+                ></button>
+                <button
+                    class="team-btn"
+                    style="background: #006f62"
+                    title="Aston Martin"
+                    onclick="setTeam(0x006f62, this, 'Aston Martin')"
+                ></button>
+                <button
+                    class="team-btn"
+                    style="background: #0090ff"
+                    title="Alpine"
+                    onclick="setTeam(0x0090ff, this, 'Alpine')"
+                ></button>
+                <button
+                    class="team-btn"
+                    style="background: #005aff"
+                    title="Williams"
+                    onclick="setTeam(0x005aff, this, 'Williams')"
+                ></button>
+                <span
+                    id="team-name-display"
+                    style="color: #aaa; font-family: monospace; font-size: 12px; min-width: 90px; margin-left: 5px"
+                    >McLaren</span
+                >
+            </div>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">TYRES</span>
+                <button class="opt-btn" onclick="setStartTyre(0, this)">SOFT</button>
+                <button class="opt-btn selected" onclick="setStartTyre(1, this)">MED</button>
+                <button class="opt-btn" onclick="setStartTyre(2, this)">HARD</button>
+                <button class="opt-btn" onclick="setStartTyre(3, this)">RALLY</button>
+                <button class="opt-btn" onclick="setStartTyre(-1, this)">NO WEAR</button>
+            </div>
+            <!-- Tyre description card -->
+            <div class="menu-row" style="margin-top: -2px; margin-bottom: 8px;">
+                <div id="tyre-desc-card" style="background: rgba(0, 0, 0, 0.45); padding: 8px 16px; border-radius: 8px; font-size: 11px; color: #bbb; min-width: 330px; text-align: center; border: 1px solid rgba(255,255,255,0.08); box-shadow: inset 0 0 10px rgba(0,0,0,0.5); font-family: monospace;">
+                    MEDIUM COMPOUND SELECTED (Grip: ★★★★☆ | Life: ★★★☆☆)
+                </div>
+            </div>
+            <div id="row-seed" class="menu-row" style="flex-direction: column; gap: 4px">
+                <div class="menu-row">
+                    <span style="color: #aaa; font-size: 12px; letter-spacing: 2px">CIRCUIT SEED</span>
+                    <input type="text" id="seed-input" value="MONZA" maxlength="12" />
+                    <button class="opt-btn" onclick="randomizeSeed()">RANDOM</button>
+                </div>
+                <div style="color: #666; font-size: 10px; letter-spacing: 1px; text-align: center; max-width: 360px">
+                    REAL CIRCUITS: MONZA &middot; SPA &middot; MONACO &middot; SILVERSTONE &middot; INTERLAGOS &middot;
+                    SUZUKA &middot; COTA &middot; ZANDVOORT &middot; BAKU &middot; SINGAPORE
+                </div>
+            </div>
+            <div id="row-races" class="menu-row" style="display: none">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">RACES</span>
+                <button class="opt-btn selected" onclick="setRaces(3, this)">3</button>
+                <button class="opt-btn" onclick="setRaces(5, this)">5</button>
+                <button class="opt-btn" onclick="setRaces(10, this)">10</button>
+            </div>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">CARS</span>
+                <button class="opt-btn" onclick="setCars(6, this)">6</button>
+                <button class="opt-btn" onclick="setCars(10, this)">10</button>
+                <button class="opt-btn selected" onclick="setCars(12, this)">12</button>
+            </div>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">AI</span>
+                <button class="opt-btn" onclick="setDifficulty('easy', this)">EASY</button>
+                <button class="opt-btn" onclick="setDifficulty('medium', this)">MED</button>
+                <button class="opt-btn selected" onclick="setDifficulty('hard', this)">HARD</button>
+            </div>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">ZOOM</span>
+                <button class="opt-btn" onclick="setZoom(0, this)">CLOSE</button>
+                <button class="opt-btn selected" onclick="setZoom(1, this)">MID</button>
+                <button class="opt-btn" onclick="setZoom(2, this)">FAR</button>
+            </div>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">LAPS</span>
+                <button class="opt-btn selected" onclick="setLaps(3, this)">3</button>
+                <button class="opt-btn" onclick="setLaps(5, this)">5</button>
+                <button class="opt-btn" onclick="setLaps(10, this)">10</button>
+            </div>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">TIME</span>
+                <button class="opt-btn selected" onclick="setTime('day', this)">DAY</button>
+                <button class="opt-btn" onclick="setTime('sunset', this)">SUNSET</button>
+            </div>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">WEATHER</span>
+                <button class="opt-btn selected" onclick="setWeather('dry', this)">DRY</button>
+                <button class="opt-btn" onclick="setWeather('wet', this)">WET</button>
+            </div>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">QUALIFY</span>
+                <button class="opt-btn" onclick="setQualifying(true, this)">ON</button>
+                <button class="opt-btn selected" onclick="setQualifying(false, this)">OFF</button>
+            </div>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">CONTROLS</span>
+                <button class="opt-btn" onclick="setControlStyle('manual', this)">MANUAL</button>
+                <button class="opt-btn selected" onclick="setControlStyle('auto', this)">AUTO ACCEL</button>
+            </div>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">STYLE</span>
+                <button class="opt-btn selected" onclick="setStyle('f1', this)">F1</button>
+                <button class="opt-btn" onclick="setStyle('rally', this)">RALLY</button>
+            </div>
+            <div class="menu-row" id="row-surface" style="display: none">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">SURFACE</span>
+                <button class="opt-btn selected" onclick="setSurface('tarmac', this)">TARMAC</button>
+                <button class="opt-btn" onclick="setSurface('snow', this)">SNOW</button>
+                <button class="opt-btn" onclick="setSurface('mud', this)">MUD</button>
+            </div>
+            <button id="start-btn" onclick="startGame()">ENTER COCKPIT</button>
+            <button id="guide-btn" onclick="showGuide()">HOW TO PLAY</button>
+        </div>
+
+        <div id="guide-screen">
+            <h1>RACE MANUAL</h1>
+            <div class="guide-content">
+                <div class="guide-section">
+                    <h3>CONTROLS (MANUAL)</h3>
+                    <p><span class="key">W</span> / <span class="key">↑</span> ACCELERATE</p>
+                    <p><span class="key">SPC</span> BRAKE / STOP</p>
+                    <p><span class="key">S</span> / <span class="key">↓</span> REVERSE</p>
+                    <p><span class="key">A</span> / <span class="key">←</span> STEER LEFT</p>
+                    <p><span class="key">D</span> / <span class="key">→</span> STEER RIGHT</p>
+                    <p><span class="key">SPC</span> (HOLD) RESET</p>
+                    <p><span class="key">ESC</span> PAUSE</p>
+                </div>
+                <div class="guide-section">
+                    <h3>CONTROLS (AUTO ACCEL)</h3>
+                    <p>Car drives forward on its own.</p>
+                    <p><span class="key">SPC</span> BRAKE, hold at a stop to REVERSE</p>
+                    <p><span class="key">A</span> / <span class="key">←</span> STEER LEFT</p>
+                    <p><span class="key">D</span> / <span class="key">→</span> STEER RIGHT</p>
+                    <p>Select this mode from CONTROLS on the start screen.</p>
+                </div>
+                <div class="guide-section">
+                    <h3>GAME MODES</h3>
+                    <p><strong>SINGLE GP:</strong> Race on a specific seed.</p>
+                    <p><strong>SEASON:</strong> Compete in a multi-race championship.</p>
+                    <p><strong>QUALIFYING:</strong> Optional flying lap to set grid position.</p>
+                    <p><strong>PIT STOPS:</strong> Stop in the box on the start straight to change tyres.</p>
+                </div>
+            </div>
+            <button class="menu-btn" onclick="hideGuide()">CLOSE</button>
+        </div>
+
+        <div id="finish-screen">
+            <h1 id="finish-title">FINISHED</h1>
+            <div id="finish-subtitle" style="font-size: 14px; color: #aaa; margin-bottom: 20px">RACE 1/3 COMPLETE</div>
+            <div id="podium-area"></div>
+            <div class="results-container">
+                <div class="result-col">
+                    <div class="result-header" id="res-header-1">RACE RESULTS</div>
+                    <div id="race-results-list"></div>
+                </div>
+                <div class="result-col" id="season-col" style="display: none">
+                    <div class="result-header">SEASON STANDINGS</div>
+                    <div id="season-results-list"></div>
+                </div>
+            </div>
+            <button class="menu-btn" style="margin-top: 30px" id="next-btn" onclick="handleNext()">NEXT RACE</button>
+        </div>
+
+        <div id="pause-menu">
+            <h1>PAUSED</h1>
+            <button class="menu-btn" onclick="togglePause()">RESUME RACE</button>
+            <button class="menu-btn" onclick="quitToMenu()">RETIRE</button>
+        </div>
+
+        <div id="ui-layer">
+            <div id="countdown"></div>
+            <div id="pit-msg"></div>
+            <div id="pit-selection-modal" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(10px); padding: 20px 25px; border-radius: 16px; border: 2px solid #e74c3c; box-shadow: 0 15px 45px rgba(0,0,0,0.8); text-align: center; color: white; z-index: 999; width: 330px; pointer-events: auto; font-family: sans-serif;">
+                <h3 style="margin: 0 0 5px 0; letter-spacing: 2px; color: #e74c3c; font-size: 18px; font-weight: 800;">PIT STOP</h3>
+                <div style="font-size: 12px; margin-bottom: 15px; color: #aaa; letter-spacing: 0.5px;">CONFIRM TYRE COMPOUND FOR NEXT STINT</div>
+                <div style="display: flex; justify-content: center; gap: 8px; margin-bottom: 18px;">
+                    <button id="pit-opt-s" class="pit-opt-btn" onclick="selectPitCompound(0)" style="background: #222; color: #eb2f06; border: 2px solid #eb2f06; padding: 12px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; transition: all 0.2s;">S</button>
+                    <button id="pit-opt-m" class="pit-opt-btn" onclick="selectPitCompound(1)" style="background: #222; color: #f1c40f; border: 2px solid #f1c40f; padding: 12px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; transition: all 0.2s;">M</button>
+                    <button id="pit-opt-h" class="pit-opt-btn" onclick="selectPitCompound(2)" style="background: #222; color: #f5f6fa; border: 2px solid #f5f6fa; padding: 12px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; transition: all 0.2s;">H</button>
+                    <button id="pit-opt-r" class="pit-opt-btn" onclick="selectPitCompound(3)" style="background: #222; color: #2ecc71; border: 2px solid #2ecc71; padding: 12px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; transition: all 0.2s;">R</button>
+                </div>
+                <button id="pit-confirm-btn" onclick="confirmPitStop()" style="background: #2ecc71; color: white; border: none; padding: 10px 30px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; width: 100%; box-shadow: 0 4px 10px rgba(46, 204, 113, 0.4); transition: transform 0.1s;">CONFIRM & RELEASE</button>
+            </div>
+            <div id="reset-bar"><div id="reset-progress"></div></div>
+            <div id="leaderboard-hud"></div>
+
+            <div id="hud">
+                <div class="hud-section">
+                    <div class="stat-group">
+                        <div style="display: flex; align-items: baseline">
+                            <span id="gear-val">N</span>
+                            <div id="speed-container" style="display: flex; align-items: baseline">
+                                <span id="speed-val">0</span><span class="speed-unit">KM/H</span
+                                ><span
+                                    id="slipstream-indicator"
+                                    style="
+                                        color: #2ecc71;
+                                        font-weight: 900;
+                                        font-size: 11px;
+                                        margin-left: 8px;
+                                        display: none;
+                                        text-shadow: 0 0 5px rgba(46, 204, 113, 0.6);
+                                    "
+                                    >DRAFT</span
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="separator"></div>
+                <div class="hud-section">
+                    <div class="stat-group">
+                        <div class="info-row"><span class="info-label">POS</span> <span id="pos-val">6/6</span></div>
+                        <div class="info-row"><span class="info-label">LAP</span> <span id="lap-val">1/3</span></div>
+                        <div class="info-row">
+                            <span class="info-label">TYRES</span> <span id="tyre-val">100%</span
+                            ><span
+                                id="compound-badge"
+                                style="
+                                    background: #f1c40f;
+                                    color: black;
+                                    padding: 1px 5px;
+                                    border-radius: 3px;
+                                    font-weight: 900;
+                                    margin-left: 5px;
+                                    font-size: 11px;
+                                    font-family: sans-serif;
+                                    line-height: 1;
+                                "
+                                >M</span
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="separator"></div>
+                <div class="hud-section" id="strat-section" style="pointer-events: auto">
+                    <div class="stat-group">
+                        <span class="stat-label">NEXT TYRE</span>
+                        <div style="display: flex; gap: 4px; margin-top: 3px">
+                            <button id="strat-s" class="strat-btn" onclick="selectNextCompound(0)">S</button
+                            ><button id="strat-m" class="strat-btn selected-m" onclick="selectNextCompound(1)">M</button
+                            ><button id="strat-h" class="strat-btn" onclick="selectNextCompound(2)">H</button
+                            ><button id="strat-r" class="strat-btn" onclick="selectNextCompound(3)">R</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="separator"></div>
+                <div class="hud-section" style="flex-grow: 1; justify-content: flex-end">
+                    <div class="stat-group" style="align-items: flex-end">
+                        <div class="info-row">
+                            <span class="info-label">LAP T.</span> <span id="time-val">0:00.00</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">RACE T.</span>
+                            <span id="total-time-val" style="font-family: monospace">0:00.00</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="hud-section">
+                    <div id="minimap-wrapper"><canvas id="minimap" width="60" height="60"></canvas></div>
+                </div>
+                <div id="lap-flash">SECTOR 1</div>
+            </div>
+
+            <div id="mute-btn" class="hud-btn" onclick="toggleMute()">🔊</div>
+            <div id="cam-btn" class="hud-btn" onclick="toggleCam()">📷</div>
+            <div id="reset-btn" class="hud-btn" onclick="triggerReset()">🔄</div>
+
+            <div class="controls">
+                <div class="touch-btn" style="left: 20px" id="btn-l">◄</div>
+                <div class="touch-btn" style="left: 100px" id="btn-r">►</div>
+                <div class="touch-btn" style="right: 100px; bottom: 20px" id="btn-b">BRAKE</div>
+                <div
+                    class="touch-btn"
+                    style="right: 100px; bottom: 110px; border-color: #f39c12; color: #f39c12"
+                    id="btn-rev"
+                >
+                    REV
+                </div>
+                <div
+                    class="touch-btn"
+                    style="right: 20px; bottom: 40px; border-color: #2ecc71; color: #2ecc71"
+                    id="btn-g"
+                >
+                    GAS
+                </div>
             </div>
         </div>
-        <button class="menu-btn" onclick="hideGuide()">CLOSE</button>
-    </div>
 
-    <div id="finish-screen">
-        <h1 id="finish-title">FINISHED</h1>
-        <div id="finish-subtitle" style="font-size: 14px; color: #aaa; margin-bottom: 20px;">RACE 1/3 COMPLETE</div>
-        <div id="podium-area"></div>
-        <div class="results-container">
-            <div class="result-col">
-                <div class="result-header" id="res-header-1">RACE RESULTS</div>
-                <div id="race-results-list"></div>
-            </div>
-            <div class="result-col" id="season-col" style="display:none;">
-                <div class="result-header">SEASON STANDINGS</div>
-                <div id="season-results-list"></div>
-            </div>
-        </div>
-        <button class="menu-btn" style="margin-top:30px" id="next-btn" onclick="handleNext()">NEXT RACE</button>
-    </div>
+        <script src="js/ui-controls.js"></script>
 
-    <div id="pause-menu">
-        <h1>PAUSED</h1>
-        <button class="menu-btn" onclick="togglePause()">RESUME RACE</button>
-        <button class="menu-btn" onclick="quitToMenu()">RETIRE</button>
-    </div>
+        <script type="importmap">
+            {
+                "imports": {
+                    "three": "https://esm.sh/three@0.160.0",
+                    "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
+                    "cannon-es": "https://esm.sh/cannon-es@0.20.0"
+                }
+            }
+        </script>
 
-    <div id="ui-layer">
-        <div id="countdown"></div>
-        <div id="pit-msg"></div>
-        <div id="reset-bar"><div id="reset-progress"></div></div>
-        <div id="leaderboard-hud"></div>
-
-        <div id="hud">
-            <div class="hud-section"><div class="stat-group"><div style="display:flex; align-items:baseline;"><span id="gear-val">N</span><div id="speed-container" style="display:flex; align-items:baseline;"><span id="speed-val">0</span><span class="speed-unit">KM/H</span><span id="slipstream-indicator" style="color: #2ecc71; font-weight: 900; font-size: 11px; margin-left: 8px; display: none; text-shadow: 0 0 5px rgba(46,204,113,0.6);">DRAFT</span></div></div></div></div>
-            <div class="separator"></div>
-            <div class="hud-section"><div class="stat-group"><div class="info-row"><span class="info-label">POS</span> <span id="pos-val">6/6</span></div><div class="info-row"><span class="info-label">LAP</span> <span id="lap-val">1/3</span></div><div class="info-row"><span class="info-label">TYRES</span> <span id="tyre-val">100%</span><span id="compound-badge" style="background: #f1c40f; color: black; padding: 1px 5px; border-radius: 3px; font-weight: 900; margin-left: 5px; font-size: 11px; font-family: sans-serif; line-height: 1;">M</span></div></div></div>
-            <div class="separator"></div>
-            <div class="hud-section" id="strat-section" style="pointer-events: auto;"><div class="stat-group"><span class="stat-label">NEXT TYRE</span><div style="display: flex; gap: 4px; margin-top: 3px;"><button id="strat-s" class="strat-btn" onclick="selectNextCompound(0)">S</button><button id="strat-m" class="strat-btn selected-m" onclick="selectNextCompound(1)">M</button><button id="strat-h" class="strat-btn" onclick="selectNextCompound(2)">H</button><button id="strat-r" class="strat-btn" onclick="selectNextCompound(3)">R</button></div></div></div>
-            <div class="separator"></div>
-            <div class="hud-section" style="flex-grow:1; justify-content: flex-end;"><div class="stat-group" style="align-items: flex-end;"><div class="info-row"><span class="info-label">LAP T.</span> <span id="time-val">0:00.00</span></div><div class="info-row"><span class="info-label">RACE T.</span> <span id="total-time-val" style="font-family:monospace">0:00.00</span></div></div></div>
-            <div class="hud-section"><div id="minimap-wrapper"><canvas id="minimap" width="60" height="60"></canvas></div></div>
-            <div id="lap-flash">SECTOR 1</div>
-        </div>
-
-        <div id="mute-btn" class="hud-btn" onclick="toggleMute()">🔊</div>
-        <div id="cam-btn" class="hud-btn" onclick="toggleCam()">📷</div>
-
-        <div class="controls">
-            <div class="touch-btn" style="left:20px" id="btn-l">◄</div>
-            <div class="touch-btn" style="left:100px" id="btn-r">►</div>
-            <div class="touch-btn" style="right:100px; bottom:20px" id="btn-b">BRAKE</div>
-            <div class="touch-btn" style="right:100px; bottom:110px; border-color:#f39c12; color:#f39c12" id="btn-rev">REV</div>
-            <div class="touch-btn" style="right:20px; bottom:40px; border-color:#2ecc71; color: #2ecc71" id="btn-g">GAS</div>
-        </div>
-    </div>
-
-    <script src="js/ui-controls.js"></script>
-
-    <script type="importmap"> { "imports": { "three": "https://esm.sh/three@0.160.0", "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/", "cannon-es": "https://esm.sh/cannon-es@0.20.0" } } </script>
-
-    <script type="module" src="js/main.js"></script>
-</body>
+        <script type="module" src="js/main.js"></script>
+    </body>
 </html>
