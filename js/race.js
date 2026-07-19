@@ -253,11 +253,11 @@ export function updateLogic() {
             
             const otherCars = [];
             if (state.chassisBody) {
-                otherCars.push({ pos: state.chassisBody.position, cIdx: state.currentTrackIdx || 0 });
+                otherCars.push({ pos: state.chassisBody.position, cIdx: state.playerLastClosestIdx || 0 });
             }
             state.aiCars.forEach(otherAi => {
                 if (otherAi !== ai) {
-                    otherCars.push({ pos: otherAi.body.position, cIdx: otherAi.cIdx });
+                    otherCars.push({ pos: otherAi.body.position, cIdx: otherAi.lastClosestIdx });
                 }
             });
             

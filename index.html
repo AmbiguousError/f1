@@ -27,14 +27,14 @@
         </div>
         <div class="menu-row">
             <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">TEAM</span>
-            <button class="team-btn selected" style="background:#dc0000" title="Ferrari" onclick="setTeam(0xdc0000, this, 'Ferrari')"></button>
+            <button class="team-btn" style="background:#dc0000" title="Ferrari" onclick="setTeam(0xdc0000, this, 'Ferrari')"></button>
             <button class="team-btn" style="background:#000080" title="Red Bull" onclick="setTeam(0x000080, this, 'Red Bull')"></button>
             <button class="team-btn" style="background:#00d2be" title="Mercedes" onclick="setTeam(0x00d2be, this, 'Mercedes')"></button>
-            <button class="team-btn" style="background:#ff8700" title="McLaren" onclick="setTeam(0xff8700, this, 'McLaren')"></button>
+            <button class="team-btn selected" style="background:#ff8700" title="McLaren" onclick="setTeam(0xff8700, this, 'McLaren')"></button>
             <button class="team-btn" style="background:#006f62" title="Aston Martin" onclick="setTeam(0x006f62, this, 'Aston Martin')"></button>
             <button class="team-btn" style="background:#0090ff" title="Alpine" onclick="setTeam(0x0090ff, this, 'Alpine')"></button>
             <button class="team-btn" style="background:#005aff" title="Williams" onclick="setTeam(0x005aff, this, 'Williams')"></button>
-            <span id="team-name-display" style="color:#aaa; font-family:monospace; font-size:12px; min-width: 90px; margin-left: 5px;">Ferrari</span>
+            <span id="team-name-display" style="color:#aaa; font-family:monospace; font-size:12px; min-width: 90px; margin-left: 5px;">McLaren</span>
         </div>
         <div class="menu-row">
             <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">TYRES</span>
@@ -60,21 +60,21 @@
         </div>
         <div class="menu-row">
             <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">CARS</span>
-            <button class="opt-btn selected" onclick="setCars(6, this)">6</button>
+            <button class="opt-btn" onclick="setCars(6, this)">6</button>
             <button class="opt-btn" onclick="setCars(10, this)">10</button>
-            <button class="opt-btn" onclick="setCars(12, this)">12</button>
+            <button class="opt-btn selected" onclick="setCars(12, this)">12</button>
         </div>
         <div class="menu-row">
             <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">AI</span>
             <button class="opt-btn" onclick="setDifficulty('easy', this)">EASY</button>
-            <button class="opt-btn selected" onclick="setDifficulty('medium', this)">MED</button>
-            <button class="opt-btn" onclick="setDifficulty('hard', this)">HARD</button>
+            <button class="opt-btn" onclick="setDifficulty('medium', this)">MED</button>
+            <button class="opt-btn selected" onclick="setDifficulty('hard', this)">HARD</button>
         </div>
         <div class="menu-row">
             <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">ZOOM</span>
             <button class="opt-btn" onclick="setZoom(0, this)">CLOSE</button>
-            <button class="opt-btn" onclick="setZoom(1, this)">MID</button>
-            <button class="opt-btn selected" onclick="setZoom(2, this)">FAR</button>
+            <button class="opt-btn selected" onclick="setZoom(1, this)">MID</button>
+            <button class="opt-btn" onclick="setZoom(2, this)">FAR</button>
         </div>
         <div class="menu-row">
             <span style="color:#aaa; width: 60px; text-align:right; font-size:12px;">LAPS</span>

@@ -257,7 +257,7 @@ function animate() {
 
             // Calculate Player Slipstream (Drafting)
             let playerSlipstream = false;
-            if (state.chassisBody && state.currentTrackIdx !== undefined && state.raceState === 'racing' && state.pitPhase === 'none') {
+            if (state.chassisBody && state.playerLastClosestIdx !== undefined && state.raceState === 'racing' && state.pitPhase === 'none') {
                 const pPos = state.chassisBody.position;
                 const pQuat = state.chassisBody.quaternion;
                 const pSide = new THREE.Vector3(1, 0, 0).applyQuaternion(pQuat);
@@ -267,7 +267,7 @@ function animate() {
                 let closestAICarAhead = null;
                 
                 state.aiCars.forEach(ai => {
-                    let diff = ai.cIdx - state.currentTrackIdx;
+                    let diff = ai.lastClosestIdx - state.playerLastClosestIdx;
                     if (diff < -cfg.trackRes / 2) diff += cfg.trackRes;
                     else if (diff > cfg.trackRes / 2) diff -= cfg.trackRes;
                     
