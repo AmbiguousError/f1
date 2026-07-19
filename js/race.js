@@ -375,6 +375,7 @@ export function updateLogic() {
         if (state.surfaceDust !== null && onSurface === 'tarmac' && speed > 15) { if (Math.random() > 0.7) spawnDust(pos, state.surfaceDust); }
 
         let isBraking = brakeVal > 0;
+        ai.isBraking = brakeVal > 30;
         if (ai.tailMat) ai.tailMat.color.setHex(isBraking ? 0xff0000 : 0x440000);
 
         // Update AI wheel friction based on current tyre compound & wear

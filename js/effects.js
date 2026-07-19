@@ -72,6 +72,38 @@ export function updateSkidmarks() {
             }
         });
     }
+
+    // Tyre marks from competitor (AI) vehicles:
+    state.aiCars.forEach(ai => {
+        const aiSpeed = ai.body.velocity.length();
+        if (aiSpeed > 2 && !ai.finished) {
+            // AI F1 braking skidmarks:
+            if (ai.isBraking && aiSpeed > 10) {
+                [2, 3].forEach(idx => {
+                    const w = ai.wheels[idx];
+                    if (w) {
+                        if (!w.userData.lastSkidPos) w.userData.lastSkidPos = new THREE.Vector3();
+                        if (w.position.distanceToSquared(w.userData.lastSkidPos) > 0.5) {
+                            addSkid(w.position);
+                            w.userData.lastSkidPos.copy(w.position);
+                        }
+                    }
+                });
+            }
+            // AI Rally tyre marks on soft surfaces:
+            if (cfg.raceStyle === 'rally' && (cfg.surface === 'snow' || cfg.surface === 'mud')) {
+                ai.wheels.forEach(w => {
+                    if (w) {
+                        if (!w.userData.lastSkidPos) w.userData.lastSkidPos = new THREE.Vector3();
+                        if (w.position.distanceToSquared(w.userData.lastSkidPos) > 0.8) {
+                            addSkid(w.position);
+                            w.userData.lastSkidPos.copy(w.position);
+                        }
+                    }
+                });
+            }
+        }
+    });
 }
 
 export function addSkid(pos) {
