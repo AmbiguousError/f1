@@ -11,13 +11,6 @@ window.setStartTyre = function(idx, el) { if (idx === -1) { selectedNoWear = tru
 window.setStyle = function(style, el) { 
     selectedStyle = style; 
     document.getElementById('row-surface').style.display = style === 'rally' ? 'flex' : 'none'; 
-    const classRallyBtn = document.getElementById('class-rally');
-    if (classRallyBtn) {
-        classRallyBtn.style.display = style === 'rally' ? 'inline-block' : 'none';
-        if (style === 'f1' && selectedClass === 'rally') {
-            setClass('f1', document.getElementById('class-f1'));
-        }
-    }
     updateSelection(el); 
 };
 window.setSurface = function(surface, el) { selectedSurface = surface; updateSelection(el); };

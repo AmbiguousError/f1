@@ -65,14 +65,7 @@ export function generateCircuit() {
     const startPos = state.trackCurve.getPoint(0); const nextPos = state.trackCurve.getPoint(0.01); const lineGeo = new THREE.BoxGeometry(cfg.roadWidth, 0.02, 1.5);
     const lineMesh = new THREE.Mesh(lineGeo, new THREE.MeshBasicMaterial({ color: 0xffffff })); lineMesh.position.copy(startPos); lineMesh.position.y = startPos.y + 0.06; lineMesh.lookAt(nextPos); state.scene.add(lineMesh);
 
-    // Start Line Gantry
-    const tan = new THREE.Vector3().subVectors(nextPos, startPos).normalize(); const side = new THREE.Vector3(tan.z, 0, -tan.x).normalize();
-    const gantryGroup = new THREE.Group(); const pillarGeo = new THREE.BoxGeometry(1.5, 12, 1.5); const pillarMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.5 });
-    const pLeft = new THREE.Mesh(pillarGeo, pillarMat); pLeft.position.copy(startPos.clone().add(side.clone().multiplyScalar(-cfg.roadWidth / 2 - 2.5))); pLeft.position.y += 6;
-    const pRight = new THREE.Mesh(pillarGeo, pillarMat); pRight.position.copy(startPos.clone().add(side.clone().multiplyScalar(cfg.roadWidth / 2 + 2.5))); pRight.position.y += 6;
-    const bridgeGeo = new THREE.BoxGeometry(cfg.roadWidth + 6, 2.5, 2); const bridgeMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c, roughness: 0.3 });
-    const bridge = new THREE.Mesh(bridgeGeo, bridgeMat); bridge.position.copy(startPos); bridge.position.y += 12;
-    gantryGroup.add(pLeft); gantryGroup.add(pRight); gantryGroup.add(bridge); gantryGroup.rotation.y = Math.atan2(nextPos.x - startPos.x, nextPos.z - startPos.z); state.scene.add(gantryGroup);
+
 
     // Starting Grid Paint
     const gridSlotGroup = new THREE.Group(); const gridGeo = new THREE.BoxGeometry(2.5, 0.02, 5.0);

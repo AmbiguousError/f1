@@ -5,7 +5,7 @@ import * as THREE from 'three';
 // used to be one big closure's module-scope variables into a single object
 // keeps every module's imports explicit instead of relying on hidden globals.
 export const state = {
-    scene: null, camera: null, renderer: null, world: null,
+    scene: null, camera: null, renderer: null, world: null, sun: null,
 
     vehicle: null, chassisBody: null, playerTailMat: null, playerTyreStripes: [],
 

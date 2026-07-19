@@ -197,7 +197,7 @@ function setupGraphics() {
     sun.position.set(100, 200, 50); sun.castShadow = true;
     sun.shadow.mapSize.width = 2048; sun.shadow.mapSize.height = 2048; // Optimized from 4096 to 2048
     const d = 150; sun.shadow.camera.left = -d; sun.shadow.camera.right = d; sun.shadow.camera.top = d; sun.shadow.camera.bottom = -d;
-    state.scene.add(sun);
+    state.scene.add(sun); state.sun = sun;
 
     state.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.5, 2000); state.camera.position.set(0, 50, 0);
     state.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
@@ -516,6 +516,11 @@ function animate() {
         const isReversing = scratch.cScratch3.z < -0.5;
         let gearText = isReversing ? 'R' : gear; if (state.raceState === 'countdown') gearText = 'N';
         document.getElementById('gear-val').innerText = gearText; document.getElementById('time-val').innerText = formatTime(Date.now() - state.startTime); document.getElementById('total-time-val').innerText = formatTime(state.playerFinishTime > 0 ? state.playerFinishTime : Date.now() - state.raceStartTime);
+        if (state.sun) {
+            state.sun.position.set(state.chassisBody.position.x + 100, state.chassisBody.position.y + 200, state.chassisBody.position.z + 50);
+            state.sun.target.position.copy(state.chassisBody.position);
+            state.sun.target.updateMatrixWorld();
+        }
         updateLogic(); updateSkidmarks(); updateParticles(); updateMinimap();
     }
 
