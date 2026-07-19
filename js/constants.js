@@ -1,10 +1,11 @@
 export const TYRE_COMPOUNDS = [
-    { name: 'Soft', grip: 1.15, wear: 1.6, color: 0xeb2f06, label: 'S' },
+    { name: 'Soft', grip: 1.05, wear: 1.5, color: 0xeb2f06, label: 'S' },
     { name: 'Medium', grip: 1.00, wear: 1.0, color: 0xf1c40f, label: 'M' },
-    { name: 'Hard', grip: 0.88, wear: 0.6, color: 0xf5f6fa, label: 'H' }
+    { name: 'Hard', grip: 0.95, wear: 0.6, color: 0xf5f6fa, label: 'H' },
+    { name: 'Rally', grip: 0.85, wear: 0.8, color: 0x2ecc71, label: 'R' }
 ];
 
-export const TYRE_COLORS = [0xeb2f06, 0xf1c40f, 0xf5f6fa];
+export const TYRE_COLORS = [0xeb2f06, 0xf1c40f, 0xf5f6fa, 0x2ecc71];
 
 // AI roster in 2026 drivers' championship order (after the British GP, round 9/22,
 // July 2026). `performance` scales AI top speed/cornering in cars.js — keep values

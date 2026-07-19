@@ -92,9 +92,8 @@ export function generateCircuit() {
     }
     state.scene.add(gridSlotGroup);
 
-    // Rally circuits have no pit lane (no tyre stops — no-wear is forced); everything
-    // that touches pit state already null-checks state.pitBoxPosition.
-    if (cfg.raceStyle !== 'rally') generatePitLane();
+    // Always generate the pit lane so pit stops are supported in all modes:
+    generatePitLane();
 }
 
 export function generatePitLane() {

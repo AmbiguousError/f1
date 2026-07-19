@@ -124,13 +124,16 @@ export function updateStrategyUI() {
     const btnS = document.getElementById('strat-s');
     const btnM = document.getElementById('strat-m');
     const btnH = document.getElementById('strat-h');
-    if (!btnS || !btnM || !btnH) return;
+    const btnR = document.getElementById('strat-r');
+    if (!btnS || !btnM || !btnH || !btnR) return;
     btnS.className = 'strat-btn';
     btnM.className = 'strat-btn';
     btnH.className = 'strat-btn';
+    btnR.className = 'strat-btn';
     if (state.nextTyreCompoundIdx === 0) btnS.classList.add('selected-s');
     else if (state.nextTyreCompoundIdx === 1) btnM.classList.add('selected-m');
     else if (state.nextTyreCompoundIdx === 2) btnH.classList.add('selected-h');
+    else if (state.nextTyreCompoundIdx === 3) btnR.classList.add('selected-r');
 }
 
 export function selectNextCompound(idx) {
@@ -247,7 +250,11 @@ export function updateLogic() {
 
         const aiCompound = TYRE_COMPOUNDS[ai.compoundIdx];
         const aiWearFactor = 0.4 + 0.6 * Math.pow(ai.tyreLife / 100, 1.5);
-        const gripFactor = aiWearFactor * aiCompound.grip * state.surfaceGrip;
+        let aiSurfaceGripMod = state.surfaceGrip;
+        if ((cfg.surface === 'snow' || cfg.surface === 'mud') && ai.compoundIdx !== 3) {
+            aiSurfaceGripMod *= 0.35;
+        }
+        const gripFactor = aiWearFactor * aiCompound.grip * aiSurfaceGripMod;
 
         let topSpeed = ai.finished ? 100 : ai.skill.topSpeed;
         let desiredSpeed = topSpeed / 3.6;
@@ -320,14 +327,18 @@ export function updateLogic() {
                 const stripeOn = Math.floor(ai.pitStopTimer * 4) % 2 === 0;
                 ai.tyreStripes.forEach(s => s.visible = stripeOn);
                 if (ai.pitStopTimer >= 1.25) {
-                    // Pit stop complete! Choose next compound strategically based on remaining laps
-                    const remainingLaps = state.totalLaps - ai.lap;
-                    if (remainingLaps <= 2) {
-                        ai.compoundIdx = 0; // Soft (Fast finish)
-                    } else if (remainingLaps <= 5) {
-                        ai.compoundIdx = 1; // Medium
+                    // Pit stop complete! Choose next compound strategically
+                    if (cfg.raceStyle === 'rally' && (cfg.surface === 'snow' || cfg.surface === 'mud')) {
+                        ai.compoundIdx = 3; // Rally tyres for rally tracks
                     } else {
-                        ai.compoundIdx = 2; // Hard (Long stint)
+                        const remainingLaps = state.totalLaps - ai.lap;
+                        if (remainingLaps <= 2) {
+                            ai.compoundIdx = 0; // Soft (Fast finish)
+                        } else if (remainingLaps <= 5) {
+                            ai.compoundIdx = 1; // Medium
+                        } else {
+                            ai.compoundIdx = 2; // Hard (Long stint)
+                        }
                     }
                     ai.tyreLife = 100.0;
                     ai.tyreStripes.forEach(s => { s.material.color.setHex(TYRE_COLORS[ai.compoundIdx]); s.visible = true; });

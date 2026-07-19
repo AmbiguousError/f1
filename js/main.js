@@ -21,8 +21,6 @@ window.addEventListener('init-game', (e) => {
     // Name goes into results innerHTML, so keep it to plain characters.
     cfg.driverName = (d.driverName || '').replace(/[^A-Za-z0-9 _.\-]/g, '').trim().substring(0, 12) || 'Player'; cfg.teamColor = d.teamColor || 0xdc0000;
     cfg.raceStyle = d.raceStyle || 'f1'; cfg.surface = cfg.raceStyle === 'rally' ? (d.surface || 'tarmac') : 'tarmac';
-    // Rally has no pit lane, so tyre stops are impossible — force no-wear.
-    if (cfg.raceStyle === 'rally') cfg.noTyreWear = true;
     season.drivers = []; season.drivers.push({ name: "Player", color: cfg.teamColor, points: 0, isPlayer: true, lastLapTime: 0 });
     const aiCount = cfg.opponents - 1;
     for (let i = 0; i < aiCount; i++) {
@@ -326,6 +324,7 @@ function animate() {
                                 if (state.tyreCompoundIdx === 0) { badgeEl.style.backgroundColor = '#eb2f06'; badgeEl.style.color = '#fff'; }
                                 else if (state.tyreCompoundIdx === 1) { badgeEl.style.backgroundColor = '#f1c40f'; badgeEl.style.color = '#000'; }
                                 else if (state.tyreCompoundIdx === 2) { badgeEl.style.backgroundColor = '#f5f6fa'; badgeEl.style.color = '#000'; }
+                                else if (state.tyreCompoundIdx === 3) { badgeEl.style.backgroundColor = '#2ecc71'; badgeEl.style.color = '#fff'; }
                             }
                         }
                         msgEl.innerText = "GO! GO! GO!"; msgEl.style.borderColor = '#2ecc71';
@@ -452,12 +451,17 @@ function animate() {
                 if (state.tyreCompoundIdx === 0) { badgeEl.style.backgroundColor = '#eb2f06'; badgeEl.style.color = '#fff'; }
                 else if (state.tyreCompoundIdx === 1) { badgeEl.style.backgroundColor = '#f1c40f'; badgeEl.style.color = '#000'; }
                 else if (state.tyreCompoundIdx === 2) { badgeEl.style.backgroundColor = '#f5f6fa'; badgeEl.style.color = '#000'; }
+                else if (state.tyreCompoundIdx === 3) { badgeEl.style.backgroundColor = '#2ecc71'; badgeEl.style.color = '#fff'; }
             }
         }
         const compound = TYRE_COMPOUNDS[state.tyreCompoundIdx];
         const baseGrip = cfg.weather === 'wet' ? 2.0 : 4.8;
         const wearFactor = 0.4 + 0.6 * Math.pow(state.tyreLife / 100, 1.5);
-        const currentGrip = baseGrip * compound.grip * wearFactor * state.surfaceGrip;
+        let surfaceGripMod = state.surfaceGrip;
+        if ((cfg.surface === 'snow' || cfg.surface === 'mud') && state.tyreCompoundIdx !== 3) {
+            surfaceGripMod *= 0.35; // F1 slicks spin heavily on soft surfaces
+        }
+        const currentGrip = baseGrip * compound.grip * wearFactor * surfaceGripMod;
         state.vehicle.wheelInfos.forEach(w => w.frictionSlip = currentGrip);
 
         // Pit lane messaging/tyre-change/state transitions are now handled entirely by the pit

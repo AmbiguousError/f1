@@ -37,7 +37,10 @@ export function createAICar(startIdx, offset, color, id, name) {
     vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(width, h, rZ), radius: wRadiusR }); vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(-width, h, rZ), radius: wRadiusR });
     vehicle.addToWorld(state.world); const wheels = []; let aiStripes = [];
 
-    const startingCompound = Math.floor(Math.random() * 3); // 0=Soft, 1=Medium, 2=Hard
+    let startingCompound = Math.floor(Math.random() * 3); // 0=Soft, 1=Medium, 2=Hard
+    if (cfg.raceStyle === 'rally' && (cfg.surface === 'snow' || cfg.surface === 'mud')) {
+        startingCompound = 3; // Rally tyres
+    }
 
     // Per-car clones so pit-lane ghosting can fade this car's wheels without fading every car's.
     const wMatCar = wMat.clone(); const rimMatCar = rimMat.clone();
