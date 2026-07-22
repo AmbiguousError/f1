@@ -579,6 +579,14 @@ input[type='text']:focus {
     background: #e74c3c;
     color: white;
 }
+.tyre-opt-btn {
+    padding: 12px 18px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.2s;
+}
 button#start-btn {
     background: #e74c3c;
     color: white;

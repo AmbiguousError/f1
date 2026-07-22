@@ -64,7 +64,7 @@ window.setControlStyle = function (style, el) {
     selectedControlStyle = style;
     updateSelection(el);
 };
-window.setStartTyre = function (idx, el) {
+window.setStartTyre = function (idx) {
     if (idx === -1) {
         selectedNoWear = true;
         selectedStartTyre = 1;
@@ -72,9 +72,42 @@ window.setStartTyre = function (idx, el) {
         selectedNoWear = false;
         selectedStartTyre = idx;
     }
-    updateSelection(el);
+    updateStartTyreButtons();
     updateStartTyreCard();
 };
+
+// Mirrors main.js's selectPitCompound() styling so the start-screen tyre picker looks
+// and behaves like the in-pits one: same colored squares, same selected-glow treatment.
+function updateStartTyreButtons() {
+    const colors = ['#eb2f06', '#f1c40f', '#f5f6fa', '#2ecc71'];
+    const textColors = ['#fff', '#000', '#000', '#fff'];
+    const ids = ['s', 'm', 'h', 'r'];
+    for (let i = 0; i < 4; i++) {
+        const btn = document.getElementById(`start-tyre-${ids[i]}`);
+        if (!btn) continue;
+        if (!selectedNoWear && i === selectedStartTyre) {
+            btn.style.background = colors[i];
+            btn.style.color = textColors[i];
+            btn.style.boxShadow = `0 0 10px ${colors[i]}`;
+        } else {
+            btn.style.background = '#222';
+            btn.style.color = colors[i];
+            btn.style.boxShadow = 'none';
+        }
+    }
+    const noWearBtn = document.getElementById('start-tyre-nowear');
+    if (noWearBtn) {
+        if (selectedNoWear) {
+            noWearBtn.style.background = '#3498db';
+            noWearBtn.style.color = '#fff';
+            noWearBtn.style.boxShadow = '0 0 10px #3498db';
+        } else {
+            noWearBtn.style.background = '#222';
+            noWearBtn.style.color = '#3498db';
+            noWearBtn.style.boxShadow = 'none';
+        }
+    }
+}
 window.setStyle = function (style, el) {
     selectedStyle = style;
     document.getElementById('row-surface').style.display = style === 'rally' ? 'flex' : 'none';
@@ -192,5 +225,8 @@ function updateStartTyreCard() {
 }
 
 // Initialize on page load
-setTimeout(updateStartTyreCard, 100);
+setTimeout(() => {
+    updateStartTyreButtons();
+    updateStartTyreCard();
+}, 100);
 

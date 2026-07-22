@@ -86,11 +86,11 @@
             </div>
             <div class="menu-row">
                 <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">TYRES</span>
-                <button class="opt-btn" onclick="setStartTyre(0, this)">SOFT</button>
-                <button class="opt-btn selected" onclick="setStartTyre(1, this)">MED</button>
-                <button class="opt-btn" onclick="setStartTyre(2, this)">HARD</button>
-                <button class="opt-btn" onclick="setStartTyre(3, this)">RALLY</button>
-                <button class="opt-btn" onclick="setStartTyre(-1, this)">NO WEAR</button>
+                <button id="start-tyre-s" class="tyre-opt-btn" onclick="setStartTyre(0)" style="background: #222; color: #eb2f06; border: 2px solid #eb2f06;">S</button>
+                <button id="start-tyre-m" class="tyre-opt-btn" onclick="setStartTyre(1)" style="background: #f1c40f; color: #000; border: 2px solid #f1c40f; box-shadow: 0 0 10px #f1c40f;">M</button>
+                <button id="start-tyre-h" class="tyre-opt-btn" onclick="setStartTyre(2)" style="background: #222; color: #f5f6fa; border: 2px solid #f5f6fa;">H</button>
+                <button id="start-tyre-r" class="tyre-opt-btn" onclick="setStartTyre(3)" style="background: #222; color: #2ecc71; border: 2px solid #2ecc71;">R</button>
+                <button id="start-tyre-nowear" class="tyre-opt-btn" onclick="setStartTyre(-1)" style="background: #222; color: #3498db; border: 2px solid #3498db; font-size: 11px;">NO WEAR</button>
             </div>
             <!-- Tyre description card -->
             <div class="menu-row" style="margin-top: -2px; margin-bottom: 8px;">
@@ -239,10 +239,10 @@
                 <h3 style="margin: 0 0 5px 0; letter-spacing: 2px; color: #e74c3c; font-size: 18px; font-weight: 800;">PIT STOP</h3>
                 <div style="font-size: 12px; margin-bottom: 15px; color: #aaa; letter-spacing: 0.5px;">CONFIRM TYRE COMPOUND FOR NEXT STINT</div>
                 <div style="display: flex; justify-content: center; gap: 8px; margin-bottom: 18px;">
-                    <button id="pit-opt-s" class="pit-opt-btn" onclick="selectPitCompound(0)" style="background: #222; color: #eb2f06; border: 2px solid #eb2f06; padding: 12px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; transition: all 0.2s;">S</button>
-                    <button id="pit-opt-m" class="pit-opt-btn" onclick="selectPitCompound(1)" style="background: #222; color: #f1c40f; border: 2px solid #f1c40f; padding: 12px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; transition: all 0.2s;">M</button>
-                    <button id="pit-opt-h" class="pit-opt-btn" onclick="selectPitCompound(2)" style="background: #222; color: #f5f6fa; border: 2px solid #f5f6fa; padding: 12px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; transition: all 0.2s;">H</button>
-                    <button id="pit-opt-r" class="pit-opt-btn" onclick="selectPitCompound(3)" style="background: #222; color: #2ecc71; border: 2px solid #2ecc71; padding: 12px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; transition: all 0.2s;">R</button>
+                    <button id="pit-opt-s" class="tyre-opt-btn" onclick="selectPitCompound(0)" style="background: #222; color: #eb2f06; border: 2px solid #eb2f06;">S</button>
+                    <button id="pit-opt-m" class="tyre-opt-btn" onclick="selectPitCompound(1)" style="background: #222; color: #f1c40f; border: 2px solid #f1c40f;">M</button>
+                    <button id="pit-opt-h" class="tyre-opt-btn" onclick="selectPitCompound(2)" style="background: #222; color: #f5f6fa; border: 2px solid #f5f6fa;">H</button>
+                    <button id="pit-opt-r" class="tyre-opt-btn" onclick="selectPitCompound(3)" style="background: #222; color: #2ecc71; border: 2px solid #2ecc71;">R</button>
                 </div>
                 <button id="pit-confirm-btn" onclick="confirmPitStop()" style="background: #2ecc71; color: white; border: none; padding: 10px 30px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; width: 100%; box-shadow: 0 4px 10px rgba(46, 204, 113, 0.4); transition: transform 0.1s;">CONFIRM & RELEASE</button>
             </div>
