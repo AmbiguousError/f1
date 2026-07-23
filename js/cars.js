@@ -12,7 +12,8 @@ import {
     wMat,
     rimMat,
 } from './car-models.js';
-import { GROUP_WORLD, GROUP_CAR } from './constants.js';
+import { GROUP_WORLD, GROUP_CAR, AI_DRIVING_STYLES } from './constants.js';
+import { attachCollisionHandler } from './incidents.js';
 
 // Ghost a car while it's in the pit lane: it keeps driving on the world (track, pit
 // floor) but passes through other cars, and its meshes go semi-transparent. `mats`
@@ -60,6 +61,7 @@ export function createAICar(startIdx, offset, color, id, name) {
     body.addShape(shape, new CANNON.Vec3(0, isMini ? 0.2 : isRally ? 0.2 : 0.4, 0));
     body.collisionFilterGroup = GROUP_CAR;
     body.collisionFilterMask = GROUP_WORLD | GROUP_CAR;
+    if (cfg.stewardPenalties || cfg.damageEnabled) attachCollisionHandler(body, id + 1);
     body.position.copy(startPos);
     body.position.y += 1;
     const angle = Math.atan2(p2.x - p1.x, p2.z - p1.z);
@@ -152,17 +154,31 @@ export function createAICar(startIdx, offset, color, id, name) {
     let speedBase = 260,
         speedVar = 30,
         cornBase = 0.8,
-        cornVar = 0.4;
+        cornVar = 0.4,
+        // Fraction of the player's engine force (baseEnginePower in main.js / baseAccelForce in
+        // race.js) this difficulty tier's AI gets. This was previously left flat regardless of
+        // difficulty, so even on hard/rival - where topSpeed/cornering above are already tuned to
+        // match or beat the player - the AI accelerated far more sluggishly out of every corner
+        // and off every start, making the player look artificially quick even at max difficulty.
+        accelBase = 0.75;
     if (cfg.difficulty === 'easy') {
         speedBase = 230;
         speedVar = 30;
         cornBase = 0.6;
         cornVar = 0.3;
-    } else if (cfg.difficulty === 'hard') {
-        speedBase = 290;
-        speedVar = 30;
-        cornBase = 1.0;
-        cornVar = 0.4;
+        accelBase = 0.55;
+    } else if (cfg.difficulty === 'hard' || cfg.difficulty === 'rival') {
+        // Whole field (perf ~0.96-1.04) now clears the player's 340kph F1 cap on
+        // straights and out-corners a clean lap, forcing real overtakes/slipstream
+        // battles and defensive driving instead of a guaranteed runaway. Variance is
+        // tightened further than the straight-line speed spread so even the back of the
+        // grid corners like a front-runner - carving from last to first should mean
+        // fighting the whole field, not just the top two.
+        speedBase = 320;
+        speedVar = 25;
+        cornBase = 1.45;
+        cornVar = 0.2;
+        accelBase = 1.0;
     }
 
     // Scale by driver specific performance factors
@@ -170,14 +186,21 @@ export function createAICar(startIdx, offset, color, id, name) {
     const perf = driverInfo && driverInfo.performance ? driverInfo.performance : 1.0;
     speedBase *= perf;
     cornBase *= perf;
+    accelBase *= perf;
 
     if (isMini) {
         speedBase = Math.floor(speedBase * 0.55);
         speedVar = 20;
+    } else if (isRally) {
+        // Match the player's F1-to-rally top-speed ratio (main.js) so difficulty tiers
+        // produce a real target instead of AI chasing an unreachable circuit-class number.
+        speedBase = Math.floor(speedBase * 0.75);
+        speedVar = 25;
     }
     const skill = {
         topSpeed: speedBase + Math.random() * speedVar,
         cornering: cornBase + Math.random() * cornVar,
+        accel: accelBase,
         lookAhead: 20 + Math.floor(Math.random() * 10),
     };
     const pitThreshold = 30.0 + Math.random() * 10.0;
@@ -185,11 +208,15 @@ export function createAICar(startIdx, offset, color, id, name) {
     // pace against the player all race instead of just driving at a fixed skill level - see the
     // rival pacing block in race.js's updateLogic().
     const isRival = cfg.difficulty === 'rival' && id === 0;
+    // Deterministic by roster id (not random) so a given driver races with the same
+    // personality every time - see AI_DRIVING_STYLES in constants.js for what each trait does.
+    const style = AI_DRIVING_STYLES[id % AI_DRIVING_STYLES.length];
     state.aiCars.push({
         vehicle,
         body,
         wheels,
         skill,
+        style,
         id,
         name,
         lap: 1,
@@ -209,6 +236,12 @@ export function createAICar(startIdx, offset, color, id, name) {
         lastClosestIdx: startIdx,
         ghostMats: collectCarMaterials(mesh, wheels),
         isRival,
+        trackLimits: { offTimer: 0, counted: false },
+        damage: { frontWing: 100, floor: 100, gearbox: 100 },
+        pitRepairsApplied: false,
+        pitHoldT: 2.0,
+        pitRepairPlan: {},
+        wasInSand: false,
     });
 }
 
@@ -235,6 +268,7 @@ export function createF1Car(startIdx, flyingStart, offset = 0) {
     state.chassisBody.addShape(chassisShape, new CANNON.Vec3(0, isMini ? 0.2 : isRally ? 0.2 : 0.4, 0));
     state.chassisBody.collisionFilterGroup = GROUP_CAR;
     state.chassisBody.collisionFilterMask = GROUP_WORLD | GROUP_CAR;
+    if (cfg.stewardPenalties || cfg.damageEnabled) attachCollisionHandler(state.chassisBody, 0);
     state.chassisBody.position.copy(startPos);
     state.chassisBody.position.y += 1;
     const angle = Math.atan2(p2.x - p1.x, p2.z - p1.z);

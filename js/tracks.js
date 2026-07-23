@@ -93,6 +93,8 @@ export const REAL_TRACKS = {
         { x: 362.25, z: 239.9 },
         { x: 350.78, z: 245.01 },
         { x: 338.72, z: 248.47 },
+        { x: 146.22, z: 270.98 }, // small chicane-style kink added along the back straight
+        { x: 34.5, z: 331.54 },
         { x: -158, z: 354.05 },
         { x: -175.41, z: 356.5 },
         { x: -192.99, z: 356.5 },
@@ -152,6 +154,8 @@ export const REAL_TRACKS = {
         { x: 456.27, z: 94.32 },
         { x: 447.23, z: 99.16 },
         { x: 437.65, z: 102.8 },
+        { x: 162.08, z: 168.96 }, // small chicane-style kink added along the Kemmel straight
+        { x: 37.55, z: 245.05 },
         { x: -238.02, z: 311.21 },
         { x: -248.92, z: 313.85 },
         { x: -260.06, z: 315.1 },
@@ -220,6 +224,8 @@ export const REAL_TRACKS = {
         { x: 188.03, z: 173.41 },
         { x: 179.14, z: 173.91 },
         { x: 170.26, z: 173.18 },
+        { x: 40.66, z: 139.49 }, // small chicane-style kink added along the harbor-side straight
+        { x: -65.94, z: 151.74 },
         { x: -195.54, z: 118.05 },
         { x: -206.07, z: 115.81 },
         { x: -216.26, z: 112.33 },
@@ -285,6 +291,8 @@ export const REAL_TRACKS = {
         { x: 106.69, z: 295.94 },
         { x: 92.99, z: 295.68 },
         { x: 79.45, z: 293.55 },
+        { x: -63.34, z: 244.55 }, // small chicane-style kink added along this straight
+        { x: -162.9, z: 254.65 },
         { x: -305.69, z: 205.65 },
         { x: -317.29, z: 202.17 },
         { x: -328.31, z: 197.16 },
@@ -411,6 +419,8 @@ export const REAL_TRACKS = {
         { x: 522.44, z: 4.98 },
         { x: 513.6, z: 12.15 },
         { x: 503.85, z: 18.06 },
+        { x: 275.34, z: 118.72 }, // small chicane-style kink added along the back straight
+        { x: 179.52, z: 204.54 },
         { x: -48.99, z: 305.2 },
         { x: -58.5, z: 309.35 },
         { x: -68.48, z: 312.17 },
@@ -475,6 +485,8 @@ export const REAL_TRACKS = {
         { x: 297.4, z: 152.69 },
         { x: 287.74, z: 155.72 },
         { x: 277.76, z: 157.43 },
+        { x: 72.84, z: 163.19 }, // small chicane-style kink added along this straight
+        { x: -38.87, z: 204.7 },
         { x: -243.79, z: 210.46 },
         { x: -253.91, z: 210.8 },
         { x: -263.98, z: 209.78 },
@@ -600,6 +612,8 @@ export const REAL_TRACKS = {
         { x: 194.92, z: 217.21 },
         { x: 184.57, z: 215.62 },
         { x: 174.53, z: 212.69 },
+        { x: -14.79, z: 126.76 }, // small chicane-style kink added along this straight
+        { x: -123.13, z: 121.38 },
         { x: -312.45, z: 35.45 },
         { x: -323.92, z: 30.34 },
         { x: -334.57, z: 23.69 },
@@ -654,6 +668,8 @@ export const REAL_TRACKS = {
         { x: 198.26, z: 92.47 },
         { x: 189.44, z: 96.54 },
         { x: 180.14, z: 99.35 },
+        { x: 58.23, z: 113.84 }, // small chicane-style kink added along this straight
+        { x: -19.62, z: 158.28 },
         { x: -141.53, z: 172.77 },
         { x: -150.32, z: 174.16 },
         { x: -159.23, z: 174.32 },

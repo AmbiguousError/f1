@@ -24,6 +24,74 @@ export const AI_DRIVERS = [
     { name: 'Bearman', color: 0xb6babd, performance: 0.96 }, // Haas
 ];
 
+// Driving personalities (js/cars.js assigns one per AI by roster id % length, so it's
+// stable for a given driver across a whole season; js/race.js's updateLogic applies the
+// traits). These reshape *how* a driver hits their skill.topSpeed/cornering numbers, not
+// how fast they are outright - the goal is a field that feels like different drivers
+// racing wheel-to-wheel, not just interchangeable stat blocks with a shared braking model.
+export const AI_DRIVING_STYLES = [
+    {
+        key: 'lateBraker',
+        label: 'Late Braker',
+        lookAheadMult: 0.82, // commits to the corner late - reacts to a closer look-ahead point
+        brakeMargin: 1.6, // tolerates more overspeed before the brake comes on
+        brakeForce: 1.35, // ...then brakes hard to still make the apex
+        trailBrakeFactor: 1.0,
+        cornerEntryMult: 1.06, // carries extra speed into the corner
+        exitAccelMult: 1.0,
+        wearMult: 1.15, // harder braking/cornering chews through tyres faster
+        overtakeAggr: 1.1,
+    },
+    {
+        key: 'precision',
+        label: 'Precision',
+        lookAheadMult: 1.18, // looks further up the road - lifts early
+        brakeMargin: 0.7, // brakes well before the limit, no drama
+        brakeForce: 0.85,
+        trailBrakeFactor: 0.85,
+        cornerEntryMult: 1.08, // but carries the apex speed itself very cleanly
+        exitAccelMult: 1.0,
+        wearMult: 0.85,
+        overtakeAggr: 0.85,
+    },
+    {
+        key: 'trailBraker',
+        label: 'Trail Braker',
+        lookAheadMult: 0.95,
+        brakeMargin: 1.15,
+        brakeForce: 1.2, // brakes deep, still hard as steering builds
+        trailBrakeFactor: 1.6, // keeps real brake pressure on through the turn-in, not just before it
+        cornerEntryMult: 0.92, // takes a tighter, slower entry line...
+        exitAccelMult: 1.18, // ...to fire out of the apex hard
+        wearMult: 1.1,
+        overtakeAggr: 1.0,
+    },
+    {
+        key: 'smooth',
+        label: 'Smooth',
+        lookAheadMult: 1.05,
+        brakeMargin: 1.0,
+        brakeForce: 1.0,
+        trailBrakeFactor: 1.0,
+        cornerEntryMult: 1.0,
+        exitAccelMult: 1.0,
+        wearMult: 0.75, // efficient and easy on the car, consistent lap after lap
+        overtakeAggr: 0.85,
+    },
+    {
+        key: 'diver',
+        label: 'Opportunist',
+        lookAheadMult: 0.9,
+        brakeMargin: 1.25,
+        brakeForce: 1.1,
+        trailBrakeFactor: 1.1,
+        cornerEntryMult: 1.0,
+        exitAccelMult: 1.02,
+        wearMult: 1.05,
+        overtakeAggr: 1.4, // dives for gaps on the inside under braking
+    },
+];
+
 export const ZOOM_LEVELS = [
     { y: 60, dist: 40 },
     { y: 120, dist: 80 },
@@ -38,8 +106,8 @@ export const MAX_SKIDMARKS = 800;
 // Grip multiplies wheel frictionSlip (and AI cornering speed); force scales engine power.
 export const RALLY_SURFACES = {
     tarmac: { grip: 1.0, force: 1.0, track: 0x555555, ground: 0x2e8b57, trap: 0xd2b48c, dust: null },
-    snow: { grip: 0.3, force: 0.8, track: 0xdde4e8, ground: 0xe8eef2, trap: 0xcfd8dc, dust: 0xffffff },
-    mud: { grip: 0.45, force: 0.85, track: 0x6b4a2b, ground: 0x5d5233, trap: 0x4e3b24, dust: 0x8a6a3f },
+    snow: { grip: 0.38, force: 0.85, track: 0xdde4e8, ground: 0xe8eef2, trap: 0xcfd8dc, dust: 0xffffff },
+    mud: { grip: 0.52, force: 0.9, track: 0x6b4a2b, ground: 0x5d5233, trap: 0x4e3b24, dust: 0x8a6a3f },
 };
 
 // Player-selectable teams: display name + car body color. Swatches in index.html's
@@ -59,3 +127,32 @@ export const TEAMS = [
 // lane is "ghosted" by masking out GROUP_CAR so it only collides with the world.
 export const GROUP_WORLD = 1;
 export const GROUP_CAR = 2;
+
+// Track-limits escalation (js/incidents.js): tiers by a driver's cumulative
+// off-track excursion count this race. Warnings only log/flash; time5/time10
+// add seconds to the driver's finish time; drive-through caps their top speed
+// live for DRIVE_THROUGH_DURATION_MS. Every +3 past the last tier keeps
+// re-applying drive-through as a continued deterrent.
+export const TRACK_LIMIT_ESCALATION = [
+    { atCount: 1, kind: 'warning' },
+    { atCount: 2, kind: 'warning' },
+    { atCount: 3, kind: 'warning' },
+    { atCount: 4, kind: 'time5' },
+    { atCount: 7, kind: 'time10' },
+    { atCount: 10, kind: 'drive-through' },
+];
+
+// Damage zones (js/incidents.js, main.js, race.js): broad performance-affecting
+// areas a car can take damage to, each repairable individually during a pit
+// stop for its own extra hold time. minHealth keeps a zone from ever fully
+// disabling the car - arcade-fun-first, matching this game's design philosophy.
+export const DAMAGE_ZONES = [
+    { key: 'frontWing', label: 'FRONT WING', repairSeconds: 3, minHealth: 40 },
+    { key: 'floor', label: 'FLOOR', repairSeconds: 5, minHealth: 40 },
+    { key: 'gearbox', label: 'GEARBOX', repairSeconds: 4, minHealth: 40 },
+];
+
+export const BASE_PIT_HOLD_T = 2.0;
+export const MIN_IMPACT_THRESHOLD = 2.5; // m/s, filters incidental racing contact from real hits
+export const DRIVE_THROUGH_CAP_KPH = 100;
+export const DRIVE_THROUGH_DURATION_MS = 15000;

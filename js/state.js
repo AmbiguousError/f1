@@ -40,6 +40,12 @@ export const state = {
     tyreLife: 100.0,
     tyreCompoundIdx: 1,
     nextTyreCompoundIdx: 1,
+    // Damage system (js/incidents.js, main.js, race.js): player only - AI cars carry
+    // the equivalent fields directly on their state.aiCars entry (see cars.js).
+    damage: { frontWing: 100, floor: 100, gearbox: 100 },
+    pitRepairSelection: { frontWing: false, floor: false, gearbox: false },
+    pitHoldT: 0,
+    pitRepairsApplied: false,
     // Player pit-lane autopilot state machine: 'none' -> 'entering' -> 'stopped' -> 'exiting' -> 'none'.
     // While not 'none', animate() bypasses inputs.up/left/right/brake and drives the car itself.
     pitBoxPosition: null,
@@ -79,6 +85,19 @@ export const state = {
     surfaceForce: 1.0,
     surfaceDust: null,
     inputsInitialized: false,
+
+    // Steward-penalty / track-limits bookkeeping (js/incidents.js). Keyed by
+    // driverIndex: 0 = player, ai.id + 1 = AI (same convention getRaceStandings()
+    // already uses). Reset every race in resetIncidents(), called from init().
+    penalties: [],
+    driverPenaltySeconds: {},
+    driverOffenseCounts: { crash: {}, trackLimits: {} },
+    driveThroughActive: {},
+    // Edge-triggered off-track excursion tracking for the player (see
+    // js/incidents.js's checkTrackLimits) - offTimer accumulates while beyond
+    // the track edge; counted guards against one excursion re-triggering the
+    // escalation every frame until the car returns under threshold.
+    trackLimits: { offTimer: 0, counted: false },
 };
 
 export const cfg = {
@@ -99,6 +118,9 @@ export const cfg = {
     teamColor: 0xdc0000,
     raceStyle: 'f1',
     surface: 'tarmac',
+    stewardPenalties: false,
+    trackLimits: false,
+    damageEnabled: false,
 };
 
 export const season = { active: false, currentRaceIdx: 0, totalRaces: 3, seeds: [], drivers: [], currentGrid: [] };

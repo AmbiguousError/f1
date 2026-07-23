@@ -1,7 +1,16 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { state, cfg, season, inputs, scratch, globalGeometries, globalMaterials } from './state.js';
-import { AI_DRIVERS, ZOOM_LEVELS, TYRE_COMPOUNDS, TYRE_COLORS, RALLY_SURFACES } from './constants.js';
+import {
+    AI_DRIVERS,
+    ZOOM_LEVELS,
+    TYRE_COMPOUNDS,
+    TYRE_COLORS,
+    RALLY_SURFACES,
+    DRIVE_THROUGH_CAP_KPH,
+    DAMAGE_ZONES,
+    BASE_PIT_HOLD_T,
+} from './constants.js';
 import { createRNG, formatTime, pitEase } from './utils.js';
 import { setupAudio, updateAudio } from './audio.js';
 import {
@@ -16,6 +25,7 @@ import { createF1Car, createAICar, setCarGhost } from './cars.js';
 import { setupInputs } from './input.js';
 import { spawnDust, updateParticles, setupSkidmarkPool, updateSkidmarks, dustMaterials } from './effects.js';
 import { updateLogic, resetCar, updateStrategyUI } from './race.js';
+import { resetIncidents, isDriveThroughActive, checkTrackLimits, applyOffTrackDamage } from './incidents.js';
 
 window.addEventListener('init-game', (e) => {
     const d = e.detail;
@@ -30,6 +40,9 @@ window.addEventListener('init-game', (e) => {
     cfg.controlStyle = d.controlStyle || 'manual';
     cfg.startCompound = d.startCompound === undefined ? 1 : d.startCompound;
     cfg.noTyreWear = !!d.noTyreWear;
+    cfg.stewardPenalties = !!d.stewardPenalties;
+    cfg.trackLimits = !!d.trackLimits;
+    cfg.damageEnabled = !!d.damageEnabled;
     // Chosen name is display-only; the internal id stays "Player" everywhere (standings,
     // finish detection and season logic all compare against that literal).
     // Name goes into results innerHTML, so keep it to plain characters.
@@ -174,6 +187,10 @@ function init() {
     state.pitBoxPosition = null;
     state.pitPhase = 'none';
     state.pitStartTime = 0;
+    state.pitHoldT = BASE_PIT_HOLD_T;
+    state.pitRepairsApplied = false;
+    state.damage = { frontWing: 100, floor: 100, gearbox: 100 };
+    state.pitRepairSelection = { frontWing: false, floor: false, gearbox: false };
     state.tempNextTyreCompoundIdx = cfg.startCompound;
     state.playerTyreStripes = [];
     const modal = document.getElementById('pit-selection-modal');
@@ -184,6 +201,7 @@ function init() {
     state.surfaceGrip = surf.grip;
     state.surfaceForce = surf.force;
     state.surfaceDust = surf.dust;
+    resetIncidents();
 
     setupGraphics();
     if (cfg.raceStyle === 'rally') {
@@ -253,6 +271,8 @@ function init() {
     updateStrategyUI();
     const stratSection = document.getElementById('strat-section');
     if (stratSection) stratSection.style.display = cfg.noTyreWear ? 'none' : '';
+    const damageRow = document.getElementById('damage-row');
+    if (damageRow) damageRow.style.display = cfg.damageEnabled ? 'flex' : 'none';
     const badgeEl = document.getElementById('compound-badge');
     if (badgeEl) {
         badgeEl.innerText = TYRE_COMPOUNDS[state.tyreCompoundIdx].label;
@@ -494,6 +514,10 @@ function animate() {
         const tp = state.trackPoints[cIdx];
         const minDSq = (pos.x - tp.x) ** 2 + (pos.z - tp.z) ** 2;
 
+        if (cfg.trackLimits && state.raceState === 'racing' && state.pitPhase === 'none') {
+            checkTrackLimits(0, state.trackLimits, minDSq);
+        }
+
         if (state.raceState === 'finished') {
             // Race is over: this autopilot-to-finish-line branch owns the car exclusively. Make
             // sure a pit autopilot sequence can never also claim control (e.g. player crossed
@@ -520,10 +544,21 @@ function animate() {
             state.resetTimer = 0;
         } else {
             // Cumulative line chart style acceleration: rapid at start, plateauing at top speed
-            let baseEnginePower = cfg.carClass === 'mini' ? -4500 : cfg.carClass === 'rally' ? -7500 : -12000;
-            let topSpeedKph = cfg.carClass === 'mini' ? 180 : cfg.carClass === 'rally' ? 240 : 340;
+            let baseEnginePower = cfg.carClass === 'mini' ? -4500 : cfg.carClass === 'rally' ? -8500 : -12000;
+            let topSpeedKph = cfg.carClass === 'mini' ? 180 : cfg.carClass === 'rally' ? 260 : 340;
             let baseReversePower = cfg.carClass === 'mini' ? 2800 : cfg.carClass === 'rally' ? 4000 : 5500;
             let reverseTopSpeedKph = cfg.carClass === 'mini' ? 70 : cfg.carClass === 'rally' ? 85 : 100;
+
+            // Damage performance multipliers: never fully disables the car (DAMAGE_ZONES'
+            // minHealth keeps state.damage[...] >= 40, so the worst case here is a 0.7x factor).
+            if (cfg.damageEnabled) {
+                baseEnginePower *= 0.5 + 0.5 * (state.damage.gearbox / 100);
+                topSpeedKph *= 0.5 + 0.5 * (state.damage.floor / 100);
+            }
+
+            if (cfg.stewardPenalties && isDriveThroughActive(0)) {
+                topSpeedKph = Math.min(topSpeedKph, DRIVE_THROUGH_CAP_KPH);
+            }
 
             // Calculate Player Slipstream (Drafting)
             let playerSlipstream = false;
@@ -605,7 +640,16 @@ function animate() {
                         state.pitPhase = 'pitting';
                         state.pitStartTime = Date.now();
                         state.pitTyresApplied = false;
+                        state.pitRepairsApplied = false;
                         state.pitUIShown = false;
+                        // Mutable, live-extendable hold duration (see togglePitRepairZone()) - starts
+                        // at the base duration and grows if the player selects damage repairs during
+                        // the hold. NOTE: this must stay a state field, not a local const recomputed
+                        // per frame - reintroducing a local `const PIT_HOLD_T` here would silently
+                        // break repair-time extension (the stop would always take the base duration
+                        // regardless of what's selected, with no error).
+                        state.pitHoldT = BASE_PIT_HOLD_T;
+                        state.pitRepairSelection = { frontWing: false, floor: false, gearbox: false };
                         setCarGhost(state.chassisBody, state.playerGhostMats, true);
                         state.chassisBody.velocity.set(0, 0, 0);
                         state.chassisBody.angularVelocity.set(0, 0, 0);
@@ -680,10 +724,13 @@ function animate() {
                 // Drive-in/out each take as long as covering that distance at PIT_DRIVE_SPEED
                 // actually would (computed once at entry - see state.pitDriveInT/pitDriveOutT above)
                 // so the car looks driven at a real pace instead of warping to fit a fixed window.
-                // The tyre change itself is a fixed, real-pit-stop-like PIT_HOLD_T. Physics velocity
-                // is zeroed every frame so it can't fight the animation.
+                // The tyre change itself takes at least BASE_PIT_HOLD_T, real-pit-stop-like, longer
+                // if damage repairs are selected (state.pitHoldT - see togglePitRepairZone(), which
+                // extends it live while the player is stopped). Physics velocity is zeroed every
+                // frame so it can't fight the animation. PIT_HOLD_T reads state.pitHoldT directly
+                // (not a local snapshot) so a mid-hold selection change immediately extends the wait.
                 const PIT_DRIVE_IN_T = state.pitDriveInT;
-                const PIT_HOLD_T = 2.0;
+                const PIT_HOLD_T = state.pitHoldT;
                 const PIT_DRIVE_OUT_T = state.pitDriveOutT;
                 const PIT_EXIT_SPEED = 70 / 3.6; // pit-lane-limit pace to blend back into race speed, not a dead stop
                 const msgEl = document.getElementById('pit-msg');
@@ -745,6 +792,14 @@ function animate() {
                     force = 0;
                     steering = 0;
                 } else if (t < PIT_DRIVE_IN_T + PIT_HOLD_T + PIT_DRIVE_OUT_T) {
+                    if (!state.pitRepairsApplied) {
+                        state.pitRepairsApplied = true;
+                        if (cfg.damageEnabled) {
+                            for (const zone of DAMAGE_ZONES) {
+                                if (state.pitRepairSelection[zone.key]) state.damage[zone.key] = 100;
+                            }
+                        }
+                    }
                     if (!state.pitTyresApplied) {
                         state.pitTyresApplied = true;
                         state.playerTyreStripes.forEach((s) => (s.visible = true));
@@ -954,6 +1009,7 @@ function animate() {
         state.vehicle.setSteeringValue(steering, 1);
 
         let onSurface = 'tarmac';
+        const wasInSand = state.inSand;
         state.inSand = false;
         if (minDSq > 81) {
             for (let trap of state.sandTraps) {
@@ -965,6 +1021,11 @@ function animate() {
             }
             if (state.inSand) onSurface = 'sand';
             else if (minDSq > 400) onSurface = 'grass';
+        }
+        // Edge-triggered (entry only, not continuous) so a car stuck in the trap
+        // doesn't take repeated damage every frame it stays there.
+        if (cfg.damageEnabled && state.inSand && !wasInSand && speed * 3.6 > 150) {
+            applyOffTrackDamage(0);
         }
 
         if (onSurface === 'sand') {
@@ -997,6 +1058,15 @@ function animate() {
             else if (state.tyreLife > 40) tyreEl.style.color = '#f1c40f';
             else tyreEl.style.color = '#e74c3c';
 
+            if (cfg.damageEnabled) {
+                const worstHealth = Math.min(state.damage.frontWing, state.damage.floor, state.damage.gearbox);
+                const damageEl = document.getElementById('damage-val');
+                if (damageEl) {
+                    damageEl.innerText = Math.ceil(worstHealth) + '%';
+                    damageEl.style.color = worstHealth > 70 ? '#2ecc71' : worstHealth > 40 ? '#f1c40f' : '#e74c3c';
+                }
+            }
+
             const badgeEl = document.getElementById('compound-badge');
             if (badgeEl) {
                 badgeEl.innerText = compound.label;
@@ -1022,7 +1092,8 @@ function animate() {
         if ((cfg.surface === 'snow' || cfg.surface === 'mud') && state.tyreCompoundIdx !== 3) {
             surfaceGripMod *= 0.35; // F1 slicks spin heavily on soft surfaces
         }
-        const currentGrip = baseGrip * compound.grip * wearFactor * surfaceGripMod;
+        const frontWingFactor = cfg.damageEnabled ? 0.5 + 0.5 * (state.damage.frontWing / 100) : 1;
+        const currentGrip = baseGrip * compound.grip * wearFactor * surfaceGripMod * frontWingFactor;
         state.vehicle.wheelInfos.forEach((w) => (w.frictionSlip = currentGrip));
 
         // Pit lane messaging/tyre-change/state transitions are now handled entirely by the pit
@@ -1068,6 +1139,7 @@ function animate() {
         // downforce (speed^2 term) would otherwise be zero right when full torque hits.
         let downforce = speed * speed * 3.0 + 2000;
         if (downforce > 20000) downforce = 20000;
+        if (cfg.damageEnabled) downforce *= 0.5 + 0.5 * (state.damage.floor / 100);
         scratch.downforceVec.set(0, -downforce, 0);
         state.chassisBody.applyLocalForce(scratch.downforceVec, scratch.zeroVec);
 
@@ -1184,6 +1256,33 @@ window.showPitSelectionUI = function () {
     const modal = document.getElementById('pit-selection-modal');
     if (modal) modal.style.display = 'block';
     window.selectPitCompound(state.nextTyreCompoundIdx);
+    const repairSection = document.getElementById('pit-repair-section');
+    if (repairSection) repairSection.style.display = cfg.damageEnabled ? 'block' : 'none';
+    if (cfg.damageEnabled) {
+        for (const zone of DAMAGE_ZONES) window.updatePitRepairRow(zone.key);
+    }
+};
+
+window.updatePitRepairRow = function (zoneKey) {
+    const zone = DAMAGE_ZONES.find((z) => z.key === zoneKey);
+    const row = document.getElementById(`pit-repair-${zoneKey}`);
+    const healthEl = document.getElementById(`pit-repair-${zoneKey}-health`);
+    if (!row || !healthEl) return;
+    const health = Math.ceil(state.damage[zoneKey]);
+    const selected = state.pitRepairSelection[zoneKey];
+    healthEl.innerText = selected ? `REPAIRING (+${zone.repairSeconds}s)` : `${health}%`;
+    row.style.borderColor = selected ? '#2ecc71' : '#444';
+    row.style.background = selected ? 'rgba(46, 204, 113, 0.15)' : 'transparent';
+};
+
+// Live-recomputes state.pitHoldT from BASE_PIT_HOLD_T plus the repair time of every
+// currently-selected zone, so a mid-hold selection change immediately extends the
+// remaining wait (the per-frame branch condition in animate() reads state.pitHoldT
+// directly, not a snapshot, so this takes effect on the very next frame).
+window.togglePitRepairZone = function (zoneKey) {
+    state.pitRepairSelection[zoneKey] = !state.pitRepairSelection[zoneKey];
+    state.pitHoldT = BASE_PIT_HOLD_T + DAMAGE_ZONES.filter((z) => state.pitRepairSelection[z.key]).reduce((sum, z) => sum + z.repairSeconds, 0);
+    window.updatePitRepairRow(zoneKey);
 };
 
 window.selectPitCompound = function (idx) {

@@ -156,6 +156,21 @@
                 <button class="opt-btn selected" onclick="setQualifying(false, this)">OFF</button>
             </div>
             <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">F1 RULES</span>
+                <button class="opt-btn" onclick="setStewardPenalties(true, this)">ON</button>
+                <button class="opt-btn selected" onclick="setStewardPenalties(false, this)">OFF</button>
+            </div>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">TRACK LIMITS</span>
+                <button class="opt-btn" onclick="setTrackLimits(true, this)">ON</button>
+                <button class="opt-btn selected" onclick="setTrackLimits(false, this)">OFF</button>
+            </div>
+            <div class="menu-row">
+                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">DAMAGE</span>
+                <button class="opt-btn" onclick="setDamageEnabled(true, this)">ON</button>
+                <button class="opt-btn selected" onclick="setDamageEnabled(false, this)">OFF</button>
+            </div>
+            <div class="menu-row">
                 <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">CONTROLS</span>
                 <button class="opt-btn" onclick="setControlStyle('manual', this)">MANUAL</button>
                 <button class="opt-btn selected" onclick="setControlStyle('auto', this)">AUTO ACCEL</button>
@@ -202,6 +217,13 @@
                     <p><strong>SEASON:</strong> Compete in a multi-race championship.</p>
                     <p><strong>QUALIFYING:</strong> Optional flying lap to set grid position.</p>
                     <p><strong>PIT STOPS:</strong> Stop in the box on the start straight to change tyres.</p>
+                    <p><strong>F1 RULES:</strong> Contact with another car triggers a steward review - at-fault
+                    collisions escalate from a 5s penalty to 10s to a drive-through speed cap.</p>
+                    <p><strong>TRACK LIMITS:</strong> Repeated track boundary crossings escalate from a warning
+                    to a time penalty to a drive-through speed cap.</p>
+                    <p><strong>DAMAGE:</strong> Collisions and hard off-track excursions damage the front wing,
+                    floor or gearbox, degrading grip/top speed/acceleration. Repair individual zones during a
+                    pit stop for extra time.</p>
                 </div>
             </div>
             <button class="menu-btn" onclick="hideGuide()">CLOSE</button>
@@ -243,6 +265,18 @@
                     <button id="pit-opt-m" class="tyre-opt-btn" onclick="selectPitCompound(1)" style="background: #222; color: #f1c40f; border: 2px solid #f1c40f;">M</button>
                     <button id="pit-opt-h" class="tyre-opt-btn" onclick="selectPitCompound(2)" style="background: #222; color: #f5f6fa; border: 2px solid #f5f6fa;">H</button>
                     <button id="pit-opt-r" class="tyre-opt-btn" onclick="selectPitCompound(3)" style="background: #222; color: #2ecc71; border: 2px solid #2ecc71;">R</button>
+                </div>
+                <div id="pit-repair-section" style="display: none; margin-bottom: 15px;">
+                    <div style="font-size: 12px; margin-bottom: 8px; color: #aaa; letter-spacing: 0.5px;">SELECT DAMAGE REPAIRS</div>
+                    <div id="pit-repair-frontWing" class="pit-repair-row" onclick="togglePitRepairZone('frontWing')" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; margin-bottom: 4px; border-radius: 6px; border: 2px solid #444; cursor: pointer; font-size: 12px;">
+                        <span>FRONT WING</span><span id="pit-repair-frontWing-health"></span>
+                    </div>
+                    <div id="pit-repair-floor" class="pit-repair-row" onclick="togglePitRepairZone('floor')" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; margin-bottom: 4px; border-radius: 6px; border: 2px solid #444; cursor: pointer; font-size: 12px;">
+                        <span>FLOOR</span><span id="pit-repair-floor-health"></span>
+                    </div>
+                    <div id="pit-repair-gearbox" class="pit-repair-row" onclick="togglePitRepairZone('gearbox')" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-radius: 6px; border: 2px solid #444; cursor: pointer; font-size: 12px;">
+                        <span>GEARBOX</span><span id="pit-repair-gearbox-health"></span>
+                    </div>
                 </div>
                 <button id="pit-confirm-btn" onclick="confirmPitStop()" style="background: #2ecc71; color: white; border: none; padding: 10px 30px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; width: 100%; box-shadow: 0 4px 10px rgba(46, 204, 113, 0.4); transition: transform 0.1s;">CONFIRM & RELEASE</button>
             </div>
@@ -294,6 +328,9 @@
                                 "
                                 >M</span
                             >
+                        </div>
+                        <div class="info-row" id="damage-row" style="display: none">
+                            <span class="info-label">DAMAGE</span> <span id="damage-val" style="color: #2ecc71">100%</span>
                         </div>
                     </div>
                 </div>

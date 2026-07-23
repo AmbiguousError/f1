@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { state, cfg, season, scratch } from './state.js';
-import { TYRE_COMPOUNDS, TYRE_COLORS, POINTS_SYSTEM } from './constants.js';
+import { TYRE_COMPOUNDS, TYRE_COLORS, POINTS_SYSTEM, DRIVE_THROUGH_CAP_KPH, DAMAGE_ZONES, BASE_PIT_HOLD_T } from './constants.js';
 import { formatTime, pitEase } from './utils.js';
 import { findClosestTrackPoint, getPitLaneOffset, teleportToTrack } from './track.js';
 import { spawnDust } from './effects.js';
 import { setCarGhost } from './cars.js';
+import { isDriveThroughActive, getDriverPenaltySeconds, checkTrackLimits, applyOffTrackDamage } from './incidents.js';
 
 export function resetCar() {
     teleportToTrack(state.chassisBody);
@@ -61,7 +62,8 @@ export function getRaceStandings() {
         dist: getTotalDistCached(state.playerLastClosestIdx, state.currentLap, state.nextCheckpoint),
         driverIndex: 0,
         finished: pFinished,
-        finishTime: pFinished ? state.playerFinishTime : 0,
+        finishTime: pFinished ? state.playerFinishTime + getDriverPenaltySeconds(0) * 1000 : 0,
+        penaltySeconds: getDriverPenaltySeconds(0),
         speed: state.chassisBody ? state.chassisBody.velocity.length() : 0,
         color: cfg.teamColor,
     });
@@ -71,7 +73,8 @@ export function getRaceStandings() {
             dist: getTotalDistCached(ai.lastClosestIdx, ai.lap, ai.nextCp),
             driverIndex: ai.id + 1,
             finished: ai.finished,
-            finishTime: ai.finishTime,
+            finishTime: ai.finished ? ai.finishTime + getDriverPenaltySeconds(ai.id + 1) * 1000 : ai.finishTime,
+            penaltySeconds: getDriverPenaltySeconds(ai.id + 1),
             speed: ai.body ? ai.body.velocity.length() : 0,
             color: season.drivers[ai.id + 1] ? season.drivers[ai.id + 1].color : 0xffffff,
             isRival: !!ai.isRival,
@@ -113,7 +116,7 @@ export function updateFinishScreenUI(results) {
         const playerTime = results[0].finishTime;
         let avgSpeed = 65;
         if (cfg.difficulty === 'easy') avgSpeed = 50;
-        if (cfg.difficulty === 'hard') avgSpeed = 80;
+        if (cfg.difficulty === 'hard' || cfg.difficulty === 'rival') avgSpeed = 85;
         if (cfg.weather === 'wet') avgSpeed *= 0.8;
         const trackLen = state.trackCurve.getLength();
         const estimatedAiTime = (trackLen / avgSpeed) * 1000;
@@ -168,7 +171,8 @@ export function updateFinishScreenUI(results) {
         } else {
             timeStr = '--';
         }
-        row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(r.name)}</span> <div style="display:flex; gap:10px;"><span class="time-gap">${timeStr}</span><span>+${r.pts} PTS</span></div>`;
+        const penStr = r.penaltySeconds > 0 ? ` <span style="color:#e74c3c">(+${r.penaltySeconds.toFixed(1)}s PEN)</span>` : '';
+        row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(r.name)}</span> <div style="display:flex; gap:10px;"><span class="time-gap">${timeStr}${penStr}</span><span>+${r.pts} PTS</span></div>`;
         list.appendChild(row);
     });
     if (season.active) {
@@ -292,6 +296,10 @@ export function updateLogic() {
         const tp = state.trackPoints[cIdx];
         const minD = (pos.x - tp.x) ** 2 + (pos.z - tp.z) ** 2;
 
+        if (cfg.trackLimits && !ai.inPitLane && !ai.finished) {
+            checkTrackLimits(ai.id + 1, ai.trackLimits, minD);
+        }
+
         // Optimized sand traps: only run the loop if we are off the main road width
         let onSurface = 'tarmac';
         if (minD > 81) {
@@ -304,6 +312,12 @@ export function updateLogic() {
             }
             if (onSurface !== 'sand' && minD > 400) onSurface = 'grass';
         }
+        // Edge-triggered (entry only, not continuous) so a car stuck in the trap
+        // doesn't take repeated damage every frame it stays there.
+        if (cfg.damageEnabled && onSurface === 'sand' && !ai.wasInSand && ai.body.velocity.length() * 3.6 > 150) {
+            applyOffTrackDamage(ai.id + 1);
+        }
+        ai.wasInSand = onSurface === 'sand';
 
         if (onSurface !== 'tarmac') {
             ai.offTrackTimer += 1 / 60;
@@ -354,7 +368,11 @@ export function updateLogic() {
             }
         }
 
-        let lookAheadVal = ai.skill.lookAhead;
+        // Personality shifts *when* a driver starts reacting to an upcoming corner: a
+        // higher lookAheadMult (precision/smooth) reads the curvature further up the road
+        // and lifts early, while a lower one (late braker/diver) keeps looking at a nearer
+        // point and stays committed at speed until later.
+        let lookAheadVal = Math.round(ai.skill.lookAhead * ai.style.lookAheadMult);
         if (state.trackPoints.length > 20) {
             const pCurrent = state.trackPoints[cIdx];
             const pCurrentNext = state.trackPoints[(cIdx + 1) % state.trackPoints.length];
@@ -463,6 +481,23 @@ export function updateLogic() {
                 const driveOutDist = Math.hypot(ai.pitExitPos.x - boxPos.x, ai.pitExitPos.z - boxPos.z);
                 ai.pitDriveInT = Math.max(0.8, Math.min(15.0, driveInDist / PIT_DRIVE_SPEED));
                 ai.pitDriveOutT = Math.max(0.8, Math.min(15.0, driveOutDist / PIT_DRIVE_SPEED));
+
+                // AI has no interactive repair-selection UI, so it decides once, upfront: repair
+                // any zone below a health threshold, and set its hold time accordingly. Unlike the
+                // player (whose state.pitHoldT can keep extending live while stopped, see main.js's
+                // togglePitRepairZone()), this is a one-shot decision - don't force AI through the
+                // player's live-extension path.
+                ai.pitRepairsApplied = false;
+                ai.pitHoldT = BASE_PIT_HOLD_T;
+                ai.pitRepairPlan = {};
+                if (cfg.damageEnabled) {
+                    for (const zone of DAMAGE_ZONES) {
+                        if (ai.damage[zone.key] < 60) {
+                            ai.pitRepairPlan[zone.key] = true;
+                            ai.pitHoldT += zone.repairSeconds;
+                        }
+                    }
+                }
             }
         }
 
@@ -508,10 +543,16 @@ export function updateLogic() {
                 const toOther = new THREE.Vector3().subVectors(closestCarAhead.pos, myPos);
                 const latDist = toOther.dot(mySide);
                 const longDist = toOther.dot(myForward);
-                if (Math.abs(latDist) < 4.0 && longDist > 4) {
+                // overtakeAggr is the "dives down the inside to undertake" trait: an
+                // opportunist commits to the move from further back (lower distance
+                // threshold) and swings wider into the gap; a cautious driver waits for a
+                // clearer look before committing. Clamped so no personality goes wide enough
+                // to run off the racing surface.
+                const ovMult = Math.max(0.75, Math.min(1.3, ai.style.overtakeAggr));
+                if (Math.abs(latDist) < 4.0 && longDist > 4 / ovMult) {
                     slipstreamActive = true;
                     // Steer laterally out of the lead car's lane to overtake:
-                    overtakeOffset = latDist >= 0 ? -3.5 : 3.5;
+                    overtakeOffset = (latDist >= 0 ? -3.5 : 3.5) * ovMult;
                 }
             }
         }
@@ -545,9 +586,14 @@ export function updateLogic() {
         if ((cfg.surface === 'snow' || cfg.surface === 'mud') && ai.compoundIdx !== 3) {
             aiSurfaceGripMod *= 0.35;
         }
-        const gripFactor = aiWearFactor * aiCompound.grip * aiSurfaceGripMod;
+        const frontWingFactor = cfg.damageEnabled ? 0.5 + 0.5 * (ai.damage.frontWing / 100) : 1;
+        const gripFactor = aiWearFactor * aiCompound.grip * aiSurfaceGripMod * frontWingFactor;
 
         let topSpeed = ai.finished ? 100 : ai.skill.topSpeed;
+        if (cfg.damageEnabled) topSpeed *= 0.5 + 0.5 * (ai.damage.floor / 100);
+        if (cfg.stewardPenalties && isDriveThroughActive(ai.id + 1)) {
+            topSpeed = Math.min(topSpeed, DRIVE_THROUGH_CAP_KPH);
+        }
         let desiredSpeed = topSpeed / 3.6;
 
         // Reduce top speed slightly if tyres are worn (less traction out of corners)
@@ -560,10 +606,15 @@ export function updateLogic() {
             if (Math.abs(steer) > 0.05) desiredSpeed *= 0.5;
         }
 
-        // Cornering speed scaling based on steering and tyre grip
+        // Cornering speed scaling based on steering and tyre grip. cornerEntryMult is the
+        // driver's personality: late brakers/precision drivers (>1) carry extra speed into
+        // and through a corner, trail brakers (<1) take a deliberately tighter, slower line
+        // so they can fire out of the apex hard (see exitAccelMult below). It's applied on
+        // both bands so the effect compounds in a tight hairpin, same as it would for a real
+        // driver's cornering technique.
         if (Math.abs(steer) > 0.1)
-            desiredSpeed *= (cfg.raceStyle === 'rally' ? 0.35 : 0.5) * ai.skill.cornering * gripFactor;
-        if (Math.abs(steer) > 0.3) desiredSpeed *= 0.3 * gripFactor;
+            desiredSpeed *= (cfg.raceStyle === 'rally' ? 0.35 : 0.5) * ai.skill.cornering * gripFactor * ai.style.cornerEntryMult;
+        if (Math.abs(steer) > 0.3) desiredSpeed *= 0.3 * gripFactor * ai.style.cornerEntryMult;
 
         // Apply slipstream speed boost
         if (slipstreamActive) {
@@ -592,9 +643,9 @@ export function updateLogic() {
 
             const lapsRemaining = state.totalLaps - ai.lap;
             const closingIn = lapsRemaining <= 2;
-            const targetGapSeconds = closingIn ? 0.5 : 1.5;
-            const gain = closingIn ? 0.12 : 0.06;
-            const maxAdjust = closingIn ? 0.25 : 0.15;
+            const targetGapSeconds = closingIn ? 0.25 : 1.0;
+            const gain = closingIn ? 0.16 : 0.09;
+            const maxAdjust = closingIn ? 0.3 : 0.2;
 
             const gapError = gapSeconds - targetGapSeconds; // + = rival too far behind, speed up
             const paceFactor = 1 + Math.max(-maxAdjust, Math.min(maxAdjust, gapError * gain));
@@ -619,17 +670,20 @@ export function updateLogic() {
             else if (aiOnSurface === 'grass') aiSurfaceMultiplier = 1.8;
 
             const aiBaseWearRate = aiSpeed * 0.00015 + Math.abs(steerVal) * aiSpeed * 0.0006;
-            const aiWearRate = aiBaseWearRate * aiCompound.wear * aiSurfaceMultiplier * 0.72;
+            // wearMult: harder braking/cornering personalities chew through tyres faster,
+            // smooth/precision drivers are easier on the car.
+            const aiWearRate = aiBaseWearRate * aiCompound.wear * aiSurfaceMultiplier * 0.72 * ai.style.wearMult;
             ai.tyreLife -= aiWearRate;
             if (ai.tyreLife < 0) ai.tyreLife = 0;
         }
 
         // AI Pit Stop Execution: scripted drive-in / hold / drive-out animation - drive-in/out
         // duration is real-distance-at-pit-pace (ai.pitDriveInT/pitDriveOutT, set at entry above),
-        // the tyre change itself is a fixed PIT_HOLD_T - matching the player's pit stop in main.js.
+        // the tyre change itself takes ai.pitHoldT (BASE_PIT_HOLD_T, plus any damage repairs
+        // decided once at pit entry above) - matching the player's pit stop in main.js.
         if (ai.inPitLane) {
             const PIT_DRIVE_IN_T = ai.pitDriveInT;
-            const PIT_HOLD_T = 2.0;
+            const PIT_HOLD_T = ai.pitHoldT;
             const PIT_DRIVE_OUT_T = ai.pitDriveOutT;
             const PIT_EXIT_SPEED = 70 / 3.6; // matches the player's pit-lane-limit exit pace in main.js
             ai.body.velocity.set(0, 0, 0);
@@ -654,6 +708,14 @@ export function updateLogic() {
                 const stripeOn = Math.floor(holdT * 4) % 2 === 0;
                 ai.tyreStripes.forEach((s) => (s.visible = stripeOn));
             } else if (t < PIT_DRIVE_IN_T + PIT_HOLD_T + PIT_DRIVE_OUT_T) {
+                if (!ai.pitRepairsApplied) {
+                    ai.pitRepairsApplied = true;
+                    if (cfg.damageEnabled) {
+                        for (const zone of DAMAGE_ZONES) {
+                            if (ai.pitRepairPlan[zone.key]) ai.damage[zone.key] = 100;
+                        }
+                    }
+                }
                 if (!ai.pitTyresApplied) {
                     ai.pitTyresApplied = true;
                     // Pit stop complete! Choose next compound strategically
@@ -730,9 +792,19 @@ export function updateLogic() {
             }
         }
 
-        let baseAccelForce = cfg.carClass === 'mini' ? -3500 : cfg.carClass === 'rally' ? -5000 : -7000;
+        // Same magnitudes as the player's baseEnginePower in main.js, scaled down by this driver's
+        // accel skill (set per-difficulty/performance in cars.js) - see the comment there for why
+        // this can no longer be a flat AI-only constant that ignores difficulty.
+        let baseAccelForce = (cfg.carClass === 'mini' ? -4500 : cfg.carClass === 'rally' ? -8500 : -12000) * ai.skill.accel;
         if (slipstreamActive) {
             baseAccelForce *= 1.25;
+        }
+        if (cfg.damageEnabled) baseAccelForce *= 0.5 + 0.5 * (ai.damage.gearbox / 100);
+        // exitAccelMult: trail brakers/opportunists lean harder on the throttle while still
+        // turning and below target speed - i.e. powering out of a corner - rather than only
+        // on the straight.
+        if (Math.abs(steerVal) > 0.05 && speed < desiredSpeed) {
+            baseAccelForce *= ai.style.exitAccelMult;
         }
         let brakeForce = cfg.carClass === 'mini' ? 1200 : cfg.carClass === 'rally' ? 1600 : 2000;
         let force = 0;
@@ -748,8 +820,11 @@ export function updateLogic() {
             // dead stop was pitching cars up off the grid at race starts.
             let launchRamp = Math.min(1.0, 0.4 + (speed * 3.6) / 20);
             force = baseAccelForce * Math.max(0.05, torqueMultiplier) * launchRamp;
-        } else if (speed > desiredSpeed + 1.0) {
-            brakeVal = 80;
+        } else if (speed > desiredSpeed + 1.0 * ai.style.brakeMargin) {
+            // brakeMargin/brakeForce: late brakers tolerate carrying more speed before the
+            // brake comes on, then have to brake harder to still make the corner; precision
+            // drivers lift earlier and brake gently.
+            brakeVal = 80 * ai.style.brakeForce;
             force = 0;
         }
 
@@ -799,7 +874,12 @@ export function updateLogic() {
         }
         let aiAbsBrakeVal = brakeVal;
         if (Math.abs(steerVal) > 0.1) {
-            aiAbsBrakeVal *= Math.max(0.4, 1.0 - Math.abs(steerVal) * 0.8);
+            // Base floor (0.4) is how much brake bleeds off as steering builds, so the car
+            // doesn't lock up and spin mid-turn. trailBrakeFactor raises that floor for
+            // drivers who genuinely trail-brake - keeping real pressure on deep into the
+            // corner instead of releasing the brake at turn-in.
+            const turnBrakeFloor = Math.min(0.9, 0.4 * ai.style.trailBrakeFactor);
+            aiAbsBrakeVal *= Math.max(turnBrakeFloor, 1.0 - Math.abs(steerVal) * 0.8);
         }
         ai.vehicle.setBrake(aiAbsBrakeVal, 0);
         ai.vehicle.setBrake(aiAbsBrakeVal, 1);
@@ -818,7 +898,9 @@ export function updateLogic() {
         }
 
         // Flat baseline term matches the player's grip-at-launch fix (see main.js).
-        scratch.downforceVec.set(0, -(speed * speed * 2 + 1500), 0);
+        let aiDownforce = speed * speed * 2 + 1500;
+        if (cfg.damageEnabled) aiDownforce *= 0.5 + 0.5 * (ai.damage.floor / 100);
+        scratch.downforceVec.set(0, -aiDownforce, 0);
         ai.body.applyLocalForce(scratch.downforceVec, scratch.zeroVec);
     });
 
