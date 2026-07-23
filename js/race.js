@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { state, cfg, season, scratch } from './state.js';
-import { TYRE_COMPOUNDS, TYRE_COLORS, POINTS_SYSTEM } from './constants.js';
+import { TYRE_COMPOUNDS, TYRE_COLORS, POINTS_SYSTEM, DRIVE_THROUGH_CAP_KPH, DAMAGE_ZONES, BASE_PIT_HOLD_T } from './constants.js';
 import { formatTime, pitEase } from './utils.js';
 import { findClosestTrackPoint, getPitLaneOffset, teleportToTrack } from './track.js';
 import { spawnDust } from './effects.js';
 import { setCarGhost } from './cars.js';
+import { isDriveThroughActive, getDriverPenaltySeconds, checkTrackLimits, applyOffTrackDamage } from './incidents.js';
 
 export function resetCar() {
     teleportToTrack(state.chassisBody);
@@ -61,7 +62,8 @@ export function getRaceStandings() {
         dist: getTotalDistCached(state.playerLastClosestIdx, state.currentLap, state.nextCheckpoint),
         driverIndex: 0,
         finished: pFinished,
-        finishTime: pFinished ? state.playerFinishTime : 0,
+        finishTime: pFinished ? state.playerFinishTime + getDriverPenaltySeconds(0) * 1000 : 0,
+        penaltySeconds: getDriverPenaltySeconds(0),
         speed: state.chassisBody ? state.chassisBody.velocity.length() : 0,
         color: cfg.teamColor,
     });
@@ -71,7 +73,8 @@ export function getRaceStandings() {
             dist: getTotalDistCached(ai.lastClosestIdx, ai.lap, ai.nextCp),
             driverIndex: ai.id + 1,
             finished: ai.finished,
-            finishTime: ai.finishTime,
+            finishTime: ai.finished ? ai.finishTime + getDriverPenaltySeconds(ai.id + 1) * 1000 : ai.finishTime,
+            penaltySeconds: getDriverPenaltySeconds(ai.id + 1),
             speed: ai.body ? ai.body.velocity.length() : 0,
             color: season.drivers[ai.id + 1] ? season.drivers[ai.id + 1].color : 0xffffff,
             isRival: !!ai.isRival,
@@ -113,7 +116,7 @@ export function updateFinishScreenUI(results) {
         const playerTime = results[0].finishTime;
         let avgSpeed = 65;
         if (cfg.difficulty === 'easy') avgSpeed = 50;
-        if (cfg.difficulty === 'hard') avgSpeed = 80;
+        if (cfg.difficulty === 'hard' || cfg.difficulty === 'rival') avgSpeed = 85;
         if (cfg.weather === 'wet') avgSpeed *= 0.8;
         const trackLen = state.trackCurve.getLength();
         const estimatedAiTime = (trackLen / avgSpeed) * 1000;
@@ -168,7 +171,8 @@ export function updateFinishScreenUI(results) {
         } else {
             timeStr = '--';
         }
-        row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(r.name)}</span> <div style="display:flex; gap:10px;"><span class="time-gap">${timeStr}</span><span>+${r.pts} PTS</span></div>`;
+        const penStr = r.penaltySeconds > 0 ? ` <span style="color:#e74c3c">(+${r.penaltySeconds.toFixed(1)}s PEN)</span>` : '';
+        row.innerHTML = `<span class="pos-${i + 1}">${i + 1}. ${displayName(r.name)}</span> <div style="display:flex; gap:10px;"><span class="time-gap">${timeStr}${penStr}</span><span>+${r.pts} PTS</span></div>`;
         list.appendChild(row);
     });
     if (season.active) {
@@ -292,6 +296,10 @@ export function updateLogic() {
         const tp = state.trackPoints[cIdx];
         const minD = (pos.x - tp.x) ** 2 + (pos.z - tp.z) ** 2;
 
+        if (cfg.trackLimits && !ai.inPitLane && !ai.finished) {
+            checkTrackLimits(ai.id + 1, ai.trackLimits, minD);
+        }
+
         // Optimized sand traps: only run the loop if we are off the main road width
         let onSurface = 'tarmac';
         if (minD > 81) {
@@ -304,6 +312,12 @@ export function updateLogic() {
             }
             if (onSurface !== 'sand' && minD > 400) onSurface = 'grass';
         }
+        // Edge-triggered (entry only, not continuous) so a car stuck in the trap
+        // doesn't take repeated damage every frame it stays there.
+        if (cfg.damageEnabled && onSurface === 'sand' && !ai.wasInSand && ai.body.velocity.length() * 3.6 > 150) {
+            applyOffTrackDamage(ai.id + 1);
+        }
+        ai.wasInSand = onSurface === 'sand';
 
         if (onSurface !== 'tarmac') {
             ai.offTrackTimer += 1 / 60;
@@ -463,6 +477,23 @@ export function updateLogic() {
                 const driveOutDist = Math.hypot(ai.pitExitPos.x - boxPos.x, ai.pitExitPos.z - boxPos.z);
                 ai.pitDriveInT = Math.max(0.8, Math.min(15.0, driveInDist / PIT_DRIVE_SPEED));
                 ai.pitDriveOutT = Math.max(0.8, Math.min(15.0, driveOutDist / PIT_DRIVE_SPEED));
+
+                // AI has no interactive repair-selection UI, so it decides once, upfront: repair
+                // any zone below a health threshold, and set its hold time accordingly. Unlike the
+                // player (whose state.pitHoldT can keep extending live while stopped, see main.js's
+                // togglePitRepairZone()), this is a one-shot decision - don't force AI through the
+                // player's live-extension path.
+                ai.pitRepairsApplied = false;
+                ai.pitHoldT = BASE_PIT_HOLD_T;
+                ai.pitRepairPlan = {};
+                if (cfg.damageEnabled) {
+                    for (const zone of DAMAGE_ZONES) {
+                        if (ai.damage[zone.key] < 60) {
+                            ai.pitRepairPlan[zone.key] = true;
+                            ai.pitHoldT += zone.repairSeconds;
+                        }
+                    }
+                }
             }
         }
 
@@ -545,9 +576,14 @@ export function updateLogic() {
         if ((cfg.surface === 'snow' || cfg.surface === 'mud') && ai.compoundIdx !== 3) {
             aiSurfaceGripMod *= 0.35;
         }
-        const gripFactor = aiWearFactor * aiCompound.grip * aiSurfaceGripMod;
+        const frontWingFactor = cfg.damageEnabled ? 0.5 + 0.5 * (ai.damage.frontWing / 100) : 1;
+        const gripFactor = aiWearFactor * aiCompound.grip * aiSurfaceGripMod * frontWingFactor;
 
         let topSpeed = ai.finished ? 100 : ai.skill.topSpeed;
+        if (cfg.damageEnabled) topSpeed *= 0.5 + 0.5 * (ai.damage.floor / 100);
+        if (cfg.stewardPenalties && isDriveThroughActive(ai.id + 1)) {
+            topSpeed = Math.min(topSpeed, DRIVE_THROUGH_CAP_KPH);
+        }
         let desiredSpeed = topSpeed / 3.6;
 
         // Reduce top speed slightly if tyres are worn (less traction out of corners)
@@ -592,9 +628,9 @@ export function updateLogic() {
 
             const lapsRemaining = state.totalLaps - ai.lap;
             const closingIn = lapsRemaining <= 2;
-            const targetGapSeconds = closingIn ? 0.5 : 1.5;
-            const gain = closingIn ? 0.12 : 0.06;
-            const maxAdjust = closingIn ? 0.25 : 0.15;
+            const targetGapSeconds = closingIn ? 0.25 : 1.0;
+            const gain = closingIn ? 0.16 : 0.09;
+            const maxAdjust = closingIn ? 0.3 : 0.2;
 
             const gapError = gapSeconds - targetGapSeconds; // + = rival too far behind, speed up
             const paceFactor = 1 + Math.max(-maxAdjust, Math.min(maxAdjust, gapError * gain));
@@ -626,10 +662,11 @@ export function updateLogic() {
 
         // AI Pit Stop Execution: scripted drive-in / hold / drive-out animation - drive-in/out
         // duration is real-distance-at-pit-pace (ai.pitDriveInT/pitDriveOutT, set at entry above),
-        // the tyre change itself is a fixed PIT_HOLD_T - matching the player's pit stop in main.js.
+        // the tyre change itself takes ai.pitHoldT (BASE_PIT_HOLD_T, plus any damage repairs
+        // decided once at pit entry above) - matching the player's pit stop in main.js.
         if (ai.inPitLane) {
             const PIT_DRIVE_IN_T = ai.pitDriveInT;
-            const PIT_HOLD_T = 2.0;
+            const PIT_HOLD_T = ai.pitHoldT;
             const PIT_DRIVE_OUT_T = ai.pitDriveOutT;
             const PIT_EXIT_SPEED = 70 / 3.6; // matches the player's pit-lane-limit exit pace in main.js
             ai.body.velocity.set(0, 0, 0);
@@ -654,6 +691,14 @@ export function updateLogic() {
                 const stripeOn = Math.floor(holdT * 4) % 2 === 0;
                 ai.tyreStripes.forEach((s) => (s.visible = stripeOn));
             } else if (t < PIT_DRIVE_IN_T + PIT_HOLD_T + PIT_DRIVE_OUT_T) {
+                if (!ai.pitRepairsApplied) {
+                    ai.pitRepairsApplied = true;
+                    if (cfg.damageEnabled) {
+                        for (const zone of DAMAGE_ZONES) {
+                            if (ai.pitRepairPlan[zone.key]) ai.damage[zone.key] = 100;
+                        }
+                    }
+                }
                 if (!ai.pitTyresApplied) {
                     ai.pitTyresApplied = true;
                     // Pit stop complete! Choose next compound strategically
@@ -730,10 +775,11 @@ export function updateLogic() {
             }
         }
 
-        let baseAccelForce = cfg.carClass === 'mini' ? -3500 : cfg.carClass === 'rally' ? -5000 : -7000;
+        let baseAccelForce = cfg.carClass === 'mini' ? -3500 : cfg.carClass === 'rally' ? -5600 : -7000;
         if (slipstreamActive) {
             baseAccelForce *= 1.25;
         }
+        if (cfg.damageEnabled) baseAccelForce *= 0.5 + 0.5 * (ai.damage.gearbox / 100);
         let brakeForce = cfg.carClass === 'mini' ? 1200 : cfg.carClass === 'rally' ? 1600 : 2000;
         let force = 0;
         let brakeVal = 0;
@@ -818,7 +864,9 @@ export function updateLogic() {
         }
 
         // Flat baseline term matches the player's grip-at-launch fix (see main.js).
-        scratch.downforceVec.set(0, -(speed * speed * 2 + 1500), 0);
+        let aiDownforce = speed * speed * 2 + 1500;
+        if (cfg.damageEnabled) aiDownforce *= 0.5 + 0.5 * (ai.damage.floor / 100);
+        scratch.downforceVec.set(0, -aiDownforce, 0);
         ai.body.applyLocalForce(scratch.downforceVec, scratch.zeroVec);
     });
 

@@ -38,8 +38,8 @@ export const MAX_SKIDMARKS = 800;
 // Grip multiplies wheel frictionSlip (and AI cornering speed); force scales engine power.
 export const RALLY_SURFACES = {
     tarmac: { grip: 1.0, force: 1.0, track: 0x555555, ground: 0x2e8b57, trap: 0xd2b48c, dust: null },
-    snow: { grip: 0.3, force: 0.8, track: 0xdde4e8, ground: 0xe8eef2, trap: 0xcfd8dc, dust: 0xffffff },
-    mud: { grip: 0.45, force: 0.85, track: 0x6b4a2b, ground: 0x5d5233, trap: 0x4e3b24, dust: 0x8a6a3f },
+    snow: { grip: 0.38, force: 0.85, track: 0xdde4e8, ground: 0xe8eef2, trap: 0xcfd8dc, dust: 0xffffff },
+    mud: { grip: 0.52, force: 0.9, track: 0x6b4a2b, ground: 0x5d5233, trap: 0x4e3b24, dust: 0x8a6a3f },
 };
 
 // Player-selectable teams: display name + car body color. Swatches in index.html's
@@ -59,3 +59,32 @@ export const TEAMS = [
 // lane is "ghosted" by masking out GROUP_CAR so it only collides with the world.
 export const GROUP_WORLD = 1;
 export const GROUP_CAR = 2;
+
+// Track-limits escalation (js/incidents.js): tiers by a driver's cumulative
+// off-track excursion count this race. Warnings only log/flash; time5/time10
+// add seconds to the driver's finish time; drive-through caps their top speed
+// live for DRIVE_THROUGH_DURATION_MS. Every +3 past the last tier keeps
+// re-applying drive-through as a continued deterrent.
+export const TRACK_LIMIT_ESCALATION = [
+    { atCount: 1, kind: 'warning' },
+    { atCount: 2, kind: 'warning' },
+    { atCount: 3, kind: 'warning' },
+    { atCount: 4, kind: 'time5' },
+    { atCount: 7, kind: 'time10' },
+    { atCount: 10, kind: 'drive-through' },
+];
+
+// Damage zones (js/incidents.js, main.js, race.js): broad performance-affecting
+// areas a car can take damage to, each repairable individually during a pit
+// stop for its own extra hold time. minHealth keeps a zone from ever fully
+// disabling the car - arcade-fun-first, matching this game's design philosophy.
+export const DAMAGE_ZONES = [
+    { key: 'frontWing', label: 'FRONT WING', repairSeconds: 3, minHealth: 40 },
+    { key: 'floor', label: 'FLOOR', repairSeconds: 5, minHealth: 40 },
+    { key: 'gearbox', label: 'GEARBOX', repairSeconds: 4, minHealth: 40 },
+];
+
+export const BASE_PIT_HOLD_T = 2.0;
+export const MIN_IMPACT_THRESHOLD = 2.5; // m/s, filters incidental racing contact from real hits
+export const DRIVE_THROUGH_CAP_KPH = 100;
+export const DRIVE_THROUGH_DURATION_MS = 15000;

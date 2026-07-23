@@ -13,6 +13,7 @@ import {
     rimMat,
 } from './car-models.js';
 import { GROUP_WORLD, GROUP_CAR } from './constants.js';
+import { attachCollisionHandler } from './incidents.js';
 
 // Ghost a car while it's in the pit lane: it keeps driving on the world (track, pit
 // floor) but passes through other cars, and its meshes go semi-transparent. `mats`
@@ -60,6 +61,7 @@ export function createAICar(startIdx, offset, color, id, name) {
     body.addShape(shape, new CANNON.Vec3(0, isMini ? 0.2 : isRally ? 0.2 : 0.4, 0));
     body.collisionFilterGroup = GROUP_CAR;
     body.collisionFilterMask = GROUP_WORLD | GROUP_CAR;
+    if (cfg.stewardPenalties || cfg.damageEnabled) attachCollisionHandler(body, id + 1);
     body.position.copy(startPos);
     body.position.y += 1;
     const angle = Math.atan2(p2.x - p1.x, p2.z - p1.z);
@@ -158,11 +160,15 @@ export function createAICar(startIdx, offset, color, id, name) {
         speedVar = 30;
         cornBase = 0.6;
         cornVar = 0.3;
-    } else if (cfg.difficulty === 'hard') {
-        speedBase = 290;
+    } else if (cfg.difficulty === 'hard' || cfg.difficulty === 'rival') {
+        // Whole field (perf ~0.96-1.04) now clears the player's 340kph F1 cap on
+        // straights and out-corners a clean lap, forcing real overtakes/slipstream
+        // battles and defensive driving instead of a guaranteed runaway. Tightened
+        // variance so the back of the field stays a genuine threat too, not just P1-2.
+        speedBase = 320;
         speedVar = 30;
-        cornBase = 1.0;
-        cornVar = 0.4;
+        cornBase = 1.3;
+        cornVar = 0.35;
     }
 
     // Scale by driver specific performance factors
@@ -174,6 +180,11 @@ export function createAICar(startIdx, offset, color, id, name) {
     if (isMini) {
         speedBase = Math.floor(speedBase * 0.55);
         speedVar = 20;
+    } else if (isRally) {
+        // Match the player's F1-to-rally top-speed ratio (main.js) so difficulty tiers
+        // produce a real target instead of AI chasing an unreachable circuit-class number.
+        speedBase = Math.floor(speedBase * 0.75);
+        speedVar = 25;
     }
     const skill = {
         topSpeed: speedBase + Math.random() * speedVar,
@@ -209,6 +220,12 @@ export function createAICar(startIdx, offset, color, id, name) {
         lastClosestIdx: startIdx,
         ghostMats: collectCarMaterials(mesh, wheels),
         isRival,
+        trackLimits: { offTimer: 0, counted: false },
+        damage: { frontWing: 100, floor: 100, gearbox: 100 },
+        pitRepairsApplied: false,
+        pitHoldT: 2.0,
+        pitRepairPlan: {},
+        wasInSand: false,
     });
 }
 
@@ -235,6 +252,7 @@ export function createF1Car(startIdx, flyingStart, offset = 0) {
     state.chassisBody.addShape(chassisShape, new CANNON.Vec3(0, isMini ? 0.2 : isRally ? 0.2 : 0.4, 0));
     state.chassisBody.collisionFilterGroup = GROUP_CAR;
     state.chassisBody.collisionFilterMask = GROUP_WORLD | GROUP_CAR;
+    if (cfg.stewardPenalties || cfg.damageEnabled) attachCollisionHandler(state.chassisBody, 0);
     state.chassisBody.position.copy(startPos);
     state.chassisBody.position.y += 1;
     const angle = Math.atan2(p2.x - p1.x, p2.z - p1.z);

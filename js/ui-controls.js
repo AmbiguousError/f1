@@ -15,6 +15,9 @@ let selectedNoWear = false;
 let selectedTeamColor = 0xff8700;
 let selectedStyle = 'f1';
 let selectedSurface = 'tarmac';
+let selectedStewardPenalties = false;
+let selectedTrackLimits = false;
+let selectedDamageEnabled = false;
 
 window.setMode = function (mode, el) {
     gameMode = mode;
@@ -46,6 +49,18 @@ window.setWeather = function (mode, el) {
 };
 window.setQualifying = function (val, el) {
     useQualifying = val;
+    updateSelection(el);
+};
+window.setStewardPenalties = function (val, el) {
+    selectedStewardPenalties = val;
+    updateSelection(el);
+};
+window.setTrackLimits = function (val, el) {
+    selectedTrackLimits = val;
+    updateSelection(el);
+};
+window.setDamageEnabled = function (val, el) {
+    selectedDamageEnabled = val;
     updateSelection(el);
 };
 window.setLaps = function (num, el) {
@@ -162,6 +177,9 @@ window.startGame = function () {
                     controlStyle: selectedControlStyle,
                     startCompound: selectedStartTyre,
                     noTyreWear: selectedNoWear,
+                    stewardPenalties: selectedStewardPenalties,
+                    trackLimits: selectedTrackLimits,
+                    damageEnabled: selectedDamageEnabled,
                     teamColor: selectedTeamColor,
                     driverName: (document.getElementById('driver-name-input').value || '').trim(),
                     raceStyle: selectedStyle,
