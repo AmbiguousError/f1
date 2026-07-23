@@ -61,4 +61,38 @@ export function setupInputs(togglePause) {
     bind('btn-g', 'w');
     bind('btn-b', ' ');
     bind('btn-rev', 's');
+
+    // Mobile steer zones (#touch-zone-l/#touch-zone-r, css/style.css): left half of the
+    // screen steers left, right half steers right, and holding both at once is the
+    // brake/reverse gesture - mirrors squeezing a real brake rather than needing a
+    // separate button. Tracked independently of the keyboard/button `handle()` above
+    // since it's a two-input combo, not a single key.
+    let zoneLeftDown = false;
+    let zoneRightDown = false;
+    const zoneLeftEl = document.getElementById('touch-zone-l');
+    const zoneRightEl = document.getElementById('touch-zone-r');
+    const updateZoneStance = () => {
+        const both = zoneLeftDown && zoneRightDown;
+        inputs.left = zoneLeftDown && !both;
+        inputs.right = zoneRightDown && !both;
+        inputs.brake = both;
+        zoneLeftEl.classList.toggle('active', zoneLeftDown);
+        zoneRightEl.classList.toggle('active', zoneRightDown);
+    };
+    const bindZone = (el, setter) => {
+        el.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            setter(true);
+            updateZoneStance();
+        });
+        const release = (e) => {
+            e.preventDefault();
+            setter(false);
+            updateZoneStance();
+        };
+        el.addEventListener('touchend', release);
+        el.addEventListener('touchcancel', release);
+    };
+    bindZone(zoneLeftEl, (v) => (zoneLeftDown = v));
+    bindZone(zoneRightEl, (v) => (zoneRightDown = v));
 }

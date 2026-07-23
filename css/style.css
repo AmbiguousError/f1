@@ -625,11 +625,39 @@ button#start-btn:hover {
 /* Mobile Controls */
 .controls {
     position: absolute;
-    bottom: 20px;
+    top: 0;
+    bottom: 0;
     width: 100%;
-    height: 150px;
     pointer-events: none;
     display: none;
+}
+/* Full-height steer zones: left half steers left, right half steers right, and holding
+   both at once (checked in input.js) is the brake/reverse gesture - replaces the old
+   small L/R/BRAKE buttons on mobile, which are hidden below instead of removed (their
+   elements still back the keyboard's visual active-state toggle in input.js). */
+.touch-zone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 50%;
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 30px;
+    font-size: 32px;
+    color: rgba(255, 255, 255, 0.12);
+    transition: background 0.1s;
+}
+#touch-zone-l {
+    left: 0;
+}
+#touch-zone-r {
+    right: 0;
+}
+.touch-zone.active {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.22);
 }
 .touch-btn {
     position: absolute;
@@ -747,6 +775,19 @@ button#start-btn:hover {
         margin-bottom: 20px;
     }
     #minimap-wrapper {
+        display: none !important;
+    }
+    /* Race-positions box eats too much screen on mobile; leaderboard-hud is still toggled
+       via JS (display:block/none) as standings update, so this needs !important to win. */
+    #leaderboard-hud {
+        display: none !important;
+    }
+    /* Superseded by the full-height #touch-zone-l/#touch-zone-r steer zones - kept in the
+       DOM (not removed) since input.js's setBtn() unconditionally looks these up for the
+       keyboard's visual active-state toggle. */
+    #btn-l,
+    #btn-r,
+    #btn-b {
         display: none !important;
     }
     #hud .separator:last-of-type {

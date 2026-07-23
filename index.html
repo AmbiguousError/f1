@@ -255,6 +255,27 @@
         </div>
 
         <div id="ui-layer">
+            <div class="controls">
+                <div class="touch-zone" id="touch-zone-l">◄</div>
+                <div class="touch-zone" id="touch-zone-r">►</div>
+                <div class="touch-btn" style="left: 20px" id="btn-l">◄</div>
+                <div class="touch-btn" style="left: 100px" id="btn-r">►</div>
+                <div class="touch-btn" style="right: 100px; bottom: 20px" id="btn-b">BRAKE</div>
+                <div
+                    class="touch-btn"
+                    style="right: 100px; bottom: 110px; border-color: #f39c12; color: #f39c12"
+                    id="btn-rev"
+                >
+                    REV
+                </div>
+                <div
+                    class="touch-btn"
+                    style="right: 20px; bottom: 40px; border-color: #2ecc71; color: #2ecc71"
+                    id="btn-g"
+                >
+                    GAS
+                </div>
+            </div>
             <div id="countdown"></div>
             <div id="pit-msg"></div>
             <div id="pit-selection-modal" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(10px); padding: 20px 25px; border-radius: 16px; border: 2px solid #e74c3c; box-shadow: 0 15px 45px rgba(0,0,0,0.8); text-align: center; color: white; z-index: 999; width: 330px; pointer-events: auto; font-family: sans-serif;">
@@ -367,26 +388,6 @@
             <div id="mute-btn" class="hud-btn" onclick="toggleMute()">🔊</div>
             <div id="cam-btn" class="hud-btn" onclick="toggleCam()">📷</div>
             <div id="reset-btn" class="hud-btn" onclick="triggerReset()">🔄</div>
-
-            <div class="controls">
-                <div class="touch-btn" style="left: 20px" id="btn-l">◄</div>
-                <div class="touch-btn" style="left: 100px" id="btn-r">►</div>
-                <div class="touch-btn" style="right: 100px; bottom: 20px" id="btn-b">BRAKE</div>
-                <div
-                    class="touch-btn"
-                    style="right: 100px; bottom: 110px; border-color: #f39c12; color: #f39c12"
-                    id="btn-rev"
-                >
-                    REV
-                </div>
-                <div
-                    class="touch-btn"
-                    style="right: 20px; bottom: 40px; border-color: #2ecc71; color: #2ecc71"
-                    id="btn-g"
-                >
-                    GAS
-                </div>
-            </div>
         </div>
 
         <script src="js/ui-controls.js"></script>
