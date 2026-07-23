@@ -368,7 +368,11 @@ export function updateLogic() {
             }
         }
 
-        let lookAheadVal = ai.skill.lookAhead;
+        // Personality shifts *when* a driver starts reacting to an upcoming corner: a
+        // higher lookAheadMult (precision/smooth) reads the curvature further up the road
+        // and lifts early, while a lower one (late braker/diver) keeps looking at a nearer
+        // point and stays committed at speed until later.
+        let lookAheadVal = Math.round(ai.skill.lookAhead * ai.style.lookAheadMult);
         if (state.trackPoints.length > 20) {
             const pCurrent = state.trackPoints[cIdx];
             const pCurrentNext = state.trackPoints[(cIdx + 1) % state.trackPoints.length];
@@ -539,10 +543,16 @@ export function updateLogic() {
                 const toOther = new THREE.Vector3().subVectors(closestCarAhead.pos, myPos);
                 const latDist = toOther.dot(mySide);
                 const longDist = toOther.dot(myForward);
-                if (Math.abs(latDist) < 4.0 && longDist > 4) {
+                // overtakeAggr is the "dives down the inside to undertake" trait: an
+                // opportunist commits to the move from further back (lower distance
+                // threshold) and swings wider into the gap; a cautious driver waits for a
+                // clearer look before committing. Clamped so no personality goes wide enough
+                // to run off the racing surface.
+                const ovMult = Math.max(0.75, Math.min(1.3, ai.style.overtakeAggr));
+                if (Math.abs(latDist) < 4.0 && longDist > 4 / ovMult) {
                     slipstreamActive = true;
                     // Steer laterally out of the lead car's lane to overtake:
-                    overtakeOffset = latDist >= 0 ? -3.5 : 3.5;
+                    overtakeOffset = (latDist >= 0 ? -3.5 : 3.5) * ovMult;
                 }
             }
         }
@@ -596,10 +606,15 @@ export function updateLogic() {
             if (Math.abs(steer) > 0.05) desiredSpeed *= 0.5;
         }
 
-        // Cornering speed scaling based on steering and tyre grip
+        // Cornering speed scaling based on steering and tyre grip. cornerEntryMult is the
+        // driver's personality: late brakers/precision drivers (>1) carry extra speed into
+        // and through a corner, trail brakers (<1) take a deliberately tighter, slower line
+        // so they can fire out of the apex hard (see exitAccelMult below). It's applied on
+        // both bands so the effect compounds in a tight hairpin, same as it would for a real
+        // driver's cornering technique.
         if (Math.abs(steer) > 0.1)
-            desiredSpeed *= (cfg.raceStyle === 'rally' ? 0.35 : 0.5) * ai.skill.cornering * gripFactor;
-        if (Math.abs(steer) > 0.3) desiredSpeed *= 0.3 * gripFactor;
+            desiredSpeed *= (cfg.raceStyle === 'rally' ? 0.35 : 0.5) * ai.skill.cornering * gripFactor * ai.style.cornerEntryMult;
+        if (Math.abs(steer) > 0.3) desiredSpeed *= 0.3 * gripFactor * ai.style.cornerEntryMult;
 
         // Apply slipstream speed boost
         if (slipstreamActive) {
@@ -655,7 +670,9 @@ export function updateLogic() {
             else if (aiOnSurface === 'grass') aiSurfaceMultiplier = 1.8;
 
             const aiBaseWearRate = aiSpeed * 0.00015 + Math.abs(steerVal) * aiSpeed * 0.0006;
-            const aiWearRate = aiBaseWearRate * aiCompound.wear * aiSurfaceMultiplier * 0.72;
+            // wearMult: harder braking/cornering personalities chew through tyres faster,
+            // smooth/precision drivers are easier on the car.
+            const aiWearRate = aiBaseWearRate * aiCompound.wear * aiSurfaceMultiplier * 0.72 * ai.style.wearMult;
             ai.tyreLife -= aiWearRate;
             if (ai.tyreLife < 0) ai.tyreLife = 0;
         }
@@ -780,6 +797,12 @@ export function updateLogic() {
             baseAccelForce *= 1.25;
         }
         if (cfg.damageEnabled) baseAccelForce *= 0.5 + 0.5 * (ai.damage.gearbox / 100);
+        // exitAccelMult: trail brakers/opportunists lean harder on the throttle while still
+        // turning and below target speed - i.e. powering out of a corner - rather than only
+        // on the straight.
+        if (Math.abs(steerVal) > 0.05 && speed < desiredSpeed) {
+            baseAccelForce *= ai.style.exitAccelMult;
+        }
         let brakeForce = cfg.carClass === 'mini' ? 1200 : cfg.carClass === 'rally' ? 1600 : 2000;
         let force = 0;
         let brakeVal = 0;
@@ -794,8 +817,11 @@ export function updateLogic() {
             // dead stop was pitching cars up off the grid at race starts.
             let launchRamp = Math.min(1.0, 0.4 + (speed * 3.6) / 20);
             force = baseAccelForce * Math.max(0.05, torqueMultiplier) * launchRamp;
-        } else if (speed > desiredSpeed + 1.0) {
-            brakeVal = 80;
+        } else if (speed > desiredSpeed + 1.0 * ai.style.brakeMargin) {
+            // brakeMargin/brakeForce: late brakers tolerate carrying more speed before the
+            // brake comes on, then have to brake harder to still make the corner; precision
+            // drivers lift earlier and brake gently.
+            brakeVal = 80 * ai.style.brakeForce;
             force = 0;
         }
 
@@ -845,7 +871,12 @@ export function updateLogic() {
         }
         let aiAbsBrakeVal = brakeVal;
         if (Math.abs(steerVal) > 0.1) {
-            aiAbsBrakeVal *= Math.max(0.4, 1.0 - Math.abs(steerVal) * 0.8);
+            // Base floor (0.4) is how much brake bleeds off as steering builds, so the car
+            // doesn't lock up and spin mid-turn. trailBrakeFactor raises that floor for
+            // drivers who genuinely trail-brake - keeping real pressure on deep into the
+            // corner instead of releasing the brake at turn-in.
+            const turnBrakeFloor = Math.min(0.9, 0.4 * ai.style.trailBrakeFactor);
+            aiAbsBrakeVal *= Math.max(turnBrakeFloor, 1.0 - Math.abs(steerVal) * 0.8);
         }
         ai.vehicle.setBrake(aiAbsBrakeVal, 0);
         ai.vehicle.setBrake(aiAbsBrakeVal, 1);

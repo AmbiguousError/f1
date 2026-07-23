@@ -12,7 +12,7 @@ import {
     wMat,
     rimMat,
 } from './car-models.js';
-import { GROUP_WORLD, GROUP_CAR } from './constants.js';
+import { GROUP_WORLD, GROUP_CAR, AI_DRIVING_STYLES } from './constants.js';
 import { attachCollisionHandler } from './incidents.js';
 
 // Ghost a car while it's in the pit lane: it keeps driving on the world (track, pit
@@ -163,12 +163,14 @@ export function createAICar(startIdx, offset, color, id, name) {
     } else if (cfg.difficulty === 'hard' || cfg.difficulty === 'rival') {
         // Whole field (perf ~0.96-1.04) now clears the player's 340kph F1 cap on
         // straights and out-corners a clean lap, forcing real overtakes/slipstream
-        // battles and defensive driving instead of a guaranteed runaway. Tightened
-        // variance so the back of the field stays a genuine threat too, not just P1-2.
+        // battles and defensive driving instead of a guaranteed runaway. Variance is
+        // tightened further than the straight-line speed spread so even the back of the
+        // grid corners like a front-runner - carving from last to first should mean
+        // fighting the whole field, not just the top two.
         speedBase = 320;
-        speedVar = 30;
-        cornBase = 1.3;
-        cornVar = 0.35;
+        speedVar = 25;
+        cornBase = 1.45;
+        cornVar = 0.2;
     }
 
     // Scale by driver specific performance factors
@@ -196,11 +198,15 @@ export function createAICar(startIdx, offset, color, id, name) {
     // pace against the player all race instead of just driving at a fixed skill level - see the
     // rival pacing block in race.js's updateLogic().
     const isRival = cfg.difficulty === 'rival' && id === 0;
+    // Deterministic by roster id (not random) so a given driver races with the same
+    // personality every time - see AI_DRIVING_STYLES in constants.js for what each trait does.
+    const style = AI_DRIVING_STYLES[id % AI_DRIVING_STYLES.length];
     state.aiCars.push({
         vehicle,
         body,
         wheels,
         skill,
+        style,
         id,
         name,
         lap: 1,

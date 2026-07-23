@@ -24,6 +24,74 @@ export const AI_DRIVERS = [
     { name: 'Bearman', color: 0xb6babd, performance: 0.96 }, // Haas
 ];
 
+// Driving personalities (js/cars.js assigns one per AI by roster id % length, so it's
+// stable for a given driver across a whole season; js/race.js's updateLogic applies the
+// traits). These reshape *how* a driver hits their skill.topSpeed/cornering numbers, not
+// how fast they are outright - the goal is a field that feels like different drivers
+// racing wheel-to-wheel, not just interchangeable stat blocks with a shared braking model.
+export const AI_DRIVING_STYLES = [
+    {
+        key: 'lateBraker',
+        label: 'Late Braker',
+        lookAheadMult: 0.82, // commits to the corner late - reacts to a closer look-ahead point
+        brakeMargin: 1.6, // tolerates more overspeed before the brake comes on
+        brakeForce: 1.35, // ...then brakes hard to still make the apex
+        trailBrakeFactor: 1.0,
+        cornerEntryMult: 1.06, // carries extra speed into the corner
+        exitAccelMult: 1.0,
+        wearMult: 1.15, // harder braking/cornering chews through tyres faster
+        overtakeAggr: 1.1,
+    },
+    {
+        key: 'precision',
+        label: 'Precision',
+        lookAheadMult: 1.18, // looks further up the road - lifts early
+        brakeMargin: 0.7, // brakes well before the limit, no drama
+        brakeForce: 0.85,
+        trailBrakeFactor: 0.85,
+        cornerEntryMult: 1.08, // but carries the apex speed itself very cleanly
+        exitAccelMult: 1.0,
+        wearMult: 0.85,
+        overtakeAggr: 0.85,
+    },
+    {
+        key: 'trailBraker',
+        label: 'Trail Braker',
+        lookAheadMult: 0.95,
+        brakeMargin: 1.15,
+        brakeForce: 1.2, // brakes deep, still hard as steering builds
+        trailBrakeFactor: 1.6, // keeps real brake pressure on through the turn-in, not just before it
+        cornerEntryMult: 0.92, // takes a tighter, slower entry line...
+        exitAccelMult: 1.18, // ...to fire out of the apex hard
+        wearMult: 1.1,
+        overtakeAggr: 1.0,
+    },
+    {
+        key: 'smooth',
+        label: 'Smooth',
+        lookAheadMult: 1.05,
+        brakeMargin: 1.0,
+        brakeForce: 1.0,
+        trailBrakeFactor: 1.0,
+        cornerEntryMult: 1.0,
+        exitAccelMult: 1.0,
+        wearMult: 0.75, // efficient and easy on the car, consistent lap after lap
+        overtakeAggr: 0.85,
+    },
+    {
+        key: 'diver',
+        label: 'Opportunist',
+        lookAheadMult: 0.9,
+        brakeMargin: 1.25,
+        brakeForce: 1.1,
+        trailBrakeFactor: 1.1,
+        cornerEntryMult: 1.0,
+        exitAccelMult: 1.02,
+        wearMult: 1.05,
+        overtakeAggr: 1.4, // dives for gaps on the inside under braking
+    },
+];
+
 export const ZOOM_LEVELS = [
     { y: 60, dist: 40 },
     { y: 120, dist: 80 },
