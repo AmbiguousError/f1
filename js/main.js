@@ -635,8 +635,16 @@ function animate() {
                     // "towards the rendered pit lane/garages", not the grandstand side.
                     const sideEx = tanEz / tanELen,
                         sideEz = -tanEx / tanELen;
-                    const lateral = (pos.x - p1e.x) * sideEx + (pos.z - p1e.z) * sideEz;
-                    if (lateral > PIT_ENTRY_LATERAL_THRESHOLD) {
+                    // Require BOTH front wheels (indices 0/1, see createF1Car's addWheel order) past
+                    // the threshold, not just the chassis center - a car straddling the line with its
+                    // nose still turned in shouldn't count as "in" yet.
+                    state.vehicle.updateWheelTransform(0);
+                    state.vehicle.updateWheelTransform(1);
+                    const wFR = state.vehicle.wheelInfos[0].worldTransform.position;
+                    const wFL = state.vehicle.wheelInfos[1].worldTransform.position;
+                    const lateralFR = (wFR.x - p1e.x) * sideEx + (wFR.z - p1e.z) * sideEz;
+                    const lateralFL = (wFL.x - p1e.x) * sideEx + (wFL.z - p1e.z) * sideEz;
+                    if (lateralFR > PIT_ENTRY_LATERAL_THRESHOLD && lateralFL > PIT_ENTRY_LATERAL_THRESHOLD) {
                         state.pitPhase = 'pitting';
                         state.pitStartTime = Date.now();
                         state.pitTyresApplied = false;
