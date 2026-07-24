@@ -38,6 +38,15 @@ const rallyLightPodGeo = new THREE.BoxGeometry(0.6, 0.18, 0.25);
 const rallySpotlightGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.15, 16);
 rallySpotlightGeo.rotateX(Math.PI / 2);
 const mudFlapGeo = new THREE.BoxGeometry(0.3, 0.45, 0.04);
+// Boxy 90s Japanese RWD sedan/coupe silhouette (AE86/Silvia/Skyline flavor) - upright
+// three-box body (hood, cabin, trunk) with a small lip spoiler, not the low wide GT-wing
+// coupe this used to be.
+const driftBodyGeo = new THREE.BoxGeometry(1.3, 0.55, 2.7);
+const driftCabinGeo = new THREE.BoxGeometry(1.1, 0.4, 1.35);
+const driftTrunkLipGeo = new THREE.BoxGeometry(1.15, 0.05, 0.15);
+const driftMirrorGeo = new THREE.BoxGeometry(0.1, 0.1, 0.2);
+const driftLightGeo = new THREE.BoxGeometry(0.3, 0.12, 0.06);
+const driftGrilleGeo = new THREE.BoxGeometry(0.9, 0.15, 0.05);
 
 // Register static global shapes to protection sets to prevent disposal in cleanup()
 [
@@ -63,6 +72,12 @@ const mudFlapGeo = new THREE.BoxGeometry(0.3, 0.45, 0.04);
     rallyLightPodGeo,
     rallySpotlightGeo,
     mudFlapGeo,
+    driftBodyGeo,
+    driftCabinGeo,
+    driftTrunkLipGeo,
+    driftMirrorGeo,
+    driftLightGeo,
+    driftGrilleGeo,
 ].forEach((g) => globalGeometries.add(g));
 [wMat, rimMat].forEach((m) => globalMaterials.add(m));
 
@@ -222,6 +237,70 @@ export function buildRallyMesh(color) {
     group.add(tailL);
     group.add(tailR);
     globalGeometries.add(tailGeo);
+    group.castShadow = true;
+    group.traverse((c) => (c.castShadow = true));
+    group.userData = { tailMat: tailMat };
+    return group;
+}
+
+export function buildDriftMesh(color) {
+    const group = new THREE.Group();
+    const mainMat = new THREE.MeshStandardMaterial({ color: color, metalness: 0.3, roughness: 0.3 });
+    const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.6 });
+    const glassMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.9 });
+    const chromeMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.7, roughness: 0.3 });
+    // Upright three-box sedan body - hood ahead of the cabin, distinct trunk step behind it,
+    // rather than a low coupe silhouette.
+    const body = new THREE.Mesh(driftBodyGeo, mainMat);
+    body.position.set(0, 0.4, 0);
+    group.add(body);
+    const cabin = new THREE.Mesh(driftCabinGeo, glassMat);
+    cabin.position.set(0, 0.78, -0.2);
+    group.add(cabin);
+    const roofGeo = new THREE.BoxGeometry(1.05, 0.06, 1.0);
+    roofGeo.translate(0, 1.0, -0.2);
+    const roof = new THREE.Mesh(roofGeo, mainMat);
+    group.add(roof);
+    globalGeometries.add(roofGeo);
+    const grille = new THREE.Mesh(driftGrilleGeo, blackMat);
+    grille.position.set(0, 0.32, 1.36);
+    group.add(grille);
+    const mirrorL = new THREE.Mesh(driftMirrorGeo, blackMat);
+    mirrorL.position.set(0.62, 0.68, 0.35);
+    group.add(mirrorL);
+    const mirrorR = new THREE.Mesh(driftMirrorGeo, blackMat);
+    mirrorR.position.set(-0.62, 0.68, 0.35);
+    group.add(mirrorR);
+    // Small trunk lip spoiler - a subtle nod to the class's drift heritage without the
+    // oversized GT wing this used to have.
+    const lip = new THREE.Mesh(driftTrunkLipGeo, blackMat);
+    lip.position.set(0, 0.72, -1.32);
+    group.add(lip);
+    if (cfg.time === 'sunset') {
+        const headMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const headL = new THREE.Mesh(driftLightGeo, headMat);
+        headL.position.set(0.48, 0.42, 1.36);
+        group.add(headL);
+        const headR = new THREE.Mesh(driftLightGeo, headMat);
+        headR.position.set(-0.48, 0.42, 1.36);
+        group.add(headR);
+    }
+    const tailMat = new THREE.MeshBasicMaterial({ color: 0x440000 });
+    const tailL = new THREE.Mesh(driftLightGeo, tailMat);
+    tailL.position.set(0.48, 0.5, -1.36);
+    group.add(tailL);
+    const tailR = new THREE.Mesh(driftLightGeo, tailMat);
+    tailR.position.set(-0.48, 0.5, -1.36);
+    group.add(tailR);
+    const rimGeo = new THREE.BoxGeometry(0.02, 0.35, 2.55);
+    rimGeo.translate(0, 0.15, 0);
+    const chromeTrimL = new THREE.Mesh(rimGeo, chromeMat);
+    chromeTrimL.position.set(0.66, 0, 0);
+    group.add(chromeTrimL);
+    const chromeTrimR = new THREE.Mesh(rimGeo, chromeMat);
+    chromeTrimR.position.set(-0.66, 0, 0);
+    group.add(chromeTrimR);
+    globalGeometries.add(rimGeo);
     group.castShadow = true;
     group.traverse((c) => (c.castShadow = true));
     group.userData = { tailMat: tailMat };

@@ -152,6 +152,7 @@ window.addEventListener('toggle-cam', () => {
 });
 
 function resetUI() {
+    document.body.classList.remove('playing');
     document.getElementById('finish-screen').style.display = 'none';
     document.getElementById('hud').style.display = 'none';
     document.getElementById('leaderboard-hud').style.display = 'none';
@@ -188,6 +189,8 @@ function init() {
     state.pitPhase = 'none';
     state.pitStartTime = 0;
     state.pitHoldT = BASE_PIT_HOLD_T;
+    state.pitSelectionConfirmed = false;
+    state.pitAwaitStartTime = 0;
     state.pitRepairsApplied = false;
     state.damage = { frontWing: 100, floor: 100, gearbox: 100 };
     state.pitRepairSelection = { frontWing: false, floor: false, gearbox: false };
@@ -258,6 +261,7 @@ function init() {
     setupInputs(togglePause);
     state.isRunning = true;
     state.isPaused = false;
+    document.body.classList.add('playing');
     document.getElementById('start-screen').style.display = 'none';
     document.getElementById('hud').style.display = 'flex';
     document.getElementById('mute-btn').style.display = 'flex';
@@ -544,10 +548,26 @@ function animate() {
             state.resetTimer = 0;
         } else {
             // Cumulative line chart style acceleration: rapid at start, plateauing at top speed
-            let baseEnginePower = cfg.carClass === 'mini' ? -4500 : cfg.carClass === 'rally' ? -8500 : -12000;
-            let topSpeedKph = cfg.carClass === 'mini' ? 180 : cfg.carClass === 'rally' ? 260 : 340;
-            let baseReversePower = cfg.carClass === 'mini' ? 2800 : cfg.carClass === 'rally' ? 4000 : 5500;
-            let reverseTopSpeedKph = cfg.carClass === 'mini' ? 70 : cfg.carClass === 'rally' ? 85 : 100;
+            let baseEnginePower =
+                cfg.carClass === 'mini'
+                    ? -4500
+                    : cfg.carClass === 'rally'
+                      ? -8500
+                      : cfg.carClass === 'drift'
+                        ? -9000
+                        : -12000;
+            let topSpeedKph =
+                cfg.carClass === 'mini' ? 180 : cfg.carClass === 'rally' ? 260 : cfg.carClass === 'drift' ? 260 : 340;
+            let baseReversePower =
+                cfg.carClass === 'mini'
+                    ? 2800
+                    : cfg.carClass === 'rally'
+                      ? 4000
+                      : cfg.carClass === 'drift'
+                        ? 3600
+                        : 5500;
+            let reverseTopSpeedKph =
+                cfg.carClass === 'mini' ? 70 : cfg.carClass === 'rally' ? 85 : cfg.carClass === 'drift' ? 80 : 100;
 
             // Damage performance multipliers: never fully disables the car (DAMAGE_ZONES'
             // minHealth keeps state.damage[...] >= 40, so the worst case here is a 0.7x factor).
@@ -617,31 +637,64 @@ function animate() {
             // getPitLaneOffset()). A player is only "entering the pits" once they've steered
             // laterally past the main track's kerb onto that extra tarmac while inside that ramp
             // window - checking the index window alone would also fire for a driver simply
-            // holding the racing line through the same stretch, so we require both.
+            // holding the racing line through the same stretch, so we require both. On top of
+            // that, the scripted drive-in animation itself must not start until the car has
+            // actually taken the pit entry line (the painted line at the end of the ramp, where
+            // generatePitLane() finishes tapering to full pit-lane width) - requiring only lateral
+            // position let the animation hijack the car mid-ramp, before it visibly crossed that
+            // line, so we additionally require 2+ front wheels (or 3+ of the 4 wheels) to have
+            // crossed the line's plane, the same dot-product test race.js uses for the real
+            // start/finish line.
             const PIT_LEN = 60;
             const PIT_RAMP_LEN = 25;
             const PIT_ENTRY_LATERAL_THRESHOLD = 8.5;
             if (state.pitPhase === 'none' && state.pitBoxPosition) {
                 let pitRelIdx = cIdx;
                 if (pitRelIdx > cfg.trackRes / 2) pitRelIdx -= cfg.trackRes;
-                if (pitRelIdx >= -PIT_LEN && pitRelIdx <= -PIT_LEN + PIT_RAMP_LEN) {
+                // Widened past the ramp's end (-PIT_LEN+PIT_RAMP_LEN) up to the start/finish line
+                // (0) so there's room for the wheel-crossing check below to actually catch the
+                // moment the front wheels reach the entry line - the chassis origin is a bit behind
+                // the front axle, so it can still be short of -PIT_LEN+PIT_RAMP_LEN when the front
+                // wheels are already past it.
+                if (pitRelIdx >= -PIT_LEN && pitRelIdx <= 0) {
                     const p1e = state.trackPoints[cIdx];
                     const p2e = state.trackPoints[(cIdx + 1) % state.trackPoints.length];
                     const tanEx = p2e.x - p1e.x,
                         tanEz = p2e.z - p1e.z;
                     const tanELen = Math.hypot(tanEx, tanEz) || 1;
-                    // side = (tan.z, -tan.x), matching generatePitLane()'s own side convention (NOT
+                    // side = (-tan.z, tan.x), matching generatePitLane()'s own side convention (NOT
                     // the cross(tangent, up) used elsewhere) so "positive lateral" really means
                     // "towards the rendered pit lane/garages", not the grandstand side.
-                    const sideEx = tanEz / tanELen,
-                        sideEz = -tanEx / tanELen;
+                    const sideEx = -tanEz / tanELen,
+                        sideEz = tanEx / tanELen;
                     const lateral = (pos.x - p1e.x) * sideEx + (pos.z - p1e.z) * sideEz;
-                    if (lateral > PIT_ENTRY_LATERAL_THRESHOLD) {
+
+                    const entryLineIdx =
+                        (((cfg.trackRes - PIT_LEN + PIT_RAMP_LEN) % cfg.trackRes) + cfg.trackRes) % cfg.trackRes;
+                    const l0 = state.trackPoints[entryLineIdx];
+                    const l1 = state.trackPoints[(entryLineIdx + 1) % state.trackPoints.length];
+                    const lineTanX = l1.x - l0.x,
+                        lineTanZ = l1.z - l0.z;
+                    let wheelsPastLine = 0;
+                    let frontWheelsPastLine = 0;
+                    for (let w = 0; w < state.vehicle.wheelInfos.length; w++) {
+                        const wp = state.vehicle.wheelInfos[w].worldTransform.position;
+                        const past = (wp.x - l0.x) * lineTanX + (wp.z - l0.z) * lineTanZ >= 0;
+                        if (past) {
+                            wheelsPastLine++;
+                            if (w < 2) frontWheelsPastLine++;
+                        }
+                    }
+                    const crossedEntryLine = frontWheelsPastLine >= 2 || wheelsPastLine >= 3;
+
+                    if (lateral > PIT_ENTRY_LATERAL_THRESHOLD && crossedEntryLine) {
                         state.pitPhase = 'pitting';
                         state.pitStartTime = Date.now();
                         state.pitTyresApplied = false;
                         state.pitRepairsApplied = false;
                         state.pitUIShown = false;
+                        state.pitSelectionConfirmed = false;
+                        state.pitAwaitStartTime = 0;
                         // Mutable, live-extendable hold duration (see togglePitRepairZone()) - starts
                         // at the base duration and grows if the player selects damage repairs during
                         // the hold. NOTE: this must stay a state field, not a local const recomputed
@@ -680,15 +733,15 @@ function animate() {
                         const exitDummy = new THREE.Object3D();
                         exitDummy.position.copy(e1);
                         exitDummy.lookAt(e2);
-                        // Release the car still offset into the merge lane (same side = (tan.z, -tan.x)
+                        // Release the car still offset into the merge lane (same side = (-tan.z, tan.x)
                         // convention as generatePitLane()/getPitLaneOffset(), not cross(tan,up)) rather
                         // than directly on the racing line - so pit exit is a lateral merge the player
                         // drives themselves, not a teleport straight into on-track traffic.
                         const exitTanX = e2.x - e1.x,
                             exitTanZ = e2.z - e1.z;
                         const exitTanLen = Math.hypot(exitTanX, exitTanZ) || 1;
-                        const exitSideX = exitTanZ / exitTanLen,
-                            exitSideZ = -exitTanX / exitTanLen;
+                        const exitSideX = -exitTanZ / exitTanLen,
+                            exitSideZ = exitTanX / exitTanLen;
                         const exitLaneOffset = getPitLaneOffset(exitIdx);
                         state.pitExitPos = {
                             x: e1.x + exitSideX * exitLaneOffset,
@@ -773,8 +826,10 @@ function animate() {
                     force = 0;
                     steering = 0;
                 } else if (t < PIT_DRIVE_IN_T + PIT_HOLD_T) {
+                    const PIT_SELECTION_TIMEOUT = 8; // seconds of no input before auto-confirming
                     if (!state.pitUIShown) {
                         state.pitUIShown = true;
+                        state.pitAwaitStartTime = Date.now();
                         // Show the tyre-selection modal only once the car has glided into the box,
                         // not the instant pit entry is detected - otherwise it pops up center-screen
                         // (right where the chase camera holds the car) and hides the drive-in
@@ -782,12 +837,29 @@ function animate() {
                         if (window.showPitSelectionUI) window.showPitSelectionUI();
                     }
                     state.chassisBody.position.set(boxP.x, boxP.y + 2, boxP.z);
-                    const holdT = t - PIT_DRIVE_IN_T;
-                    const pct = Math.floor((holdT / PIT_HOLD_T) * 100);
-                    msgEl.innerText = `CHANGING TYRES... ${pct}%`;
-                    // Low-res "tyres being changed" visual: blink the compound stripes.
-                    const stripeOn = Math.floor(holdT * 4) % 2 === 0;
-                    state.playerTyreStripes.forEach((s) => (s.visible = stripeOn));
+                    if (!state.pitSelectionConfirmed) {
+                        // Freeze the hold clock while the player is still choosing a tyre/repairs -
+                        // reading the modal shouldn't eat into the pit stop's own timed duration.
+                        // Pinning pitStartTime so `t` recomputes to exactly PIT_DRIVE_IN_T next frame
+                        // holds us at this branch's start indefinitely instead of ticking through it.
+                        state.pitStartTime = Date.now() - PIT_DRIVE_IN_T * 1000;
+                        const awaitElapsed = (Date.now() - state.pitAwaitStartTime) / 1000;
+                        if (awaitElapsed > PIT_SELECTION_TIMEOUT) {
+                            // No input for too long: default to whatever's already selected (a tyre
+                            // swap always happens; repairs apply only if toggled) rather than
+                            // stranding the player in the pits forever.
+                            if (window.confirmPitStop) window.confirmPitStop();
+                        } else {
+                            msgEl.innerText = 'SELECT TYRES...';
+                        }
+                    } else {
+                        const holdT = t - PIT_DRIVE_IN_T;
+                        const pct = Math.floor((holdT / PIT_HOLD_T) * 100);
+                        msgEl.innerText = `CHANGING TYRES... ${pct}%`;
+                        // Low-res "tyres being changed" visual: blink the compound stripes.
+                        const stripeOn = Math.floor(holdT * 4) % 2 === 0;
+                        state.playerTyreStripes.forEach((s) => (s.visible = stripeOn));
+                    }
                     brakeVal = 150;
                     force = 0;
                     steering = 0;
@@ -1094,7 +1166,11 @@ function animate() {
         }
         const frontWingFactor = cfg.damageEnabled ? 0.5 + 0.5 * (state.damage.frontWing / 100) : 1;
         const currentGrip = baseGrip * compound.grip * wearFactor * surfaceGripMod * frontWingFactor;
-        state.vehicle.wheelInfos.forEach((w) => (w.frictionSlip = currentGrip));
+        // Drift class keeps its rear wheels at reduced grip (set at construction in cars.js) even
+        // as this per-frame recompute otherwise overwrites frictionSlip uniformly - without this,
+        // every tyre-wear/surface update would silently erase the oversteer setup that makes it slide.
+        const rearGripMultiplier = cfg.carClass === 'drift' ? 0.70 : 1.0;
+        state.vehicle.wheelInfos.forEach((w, i) => (w.frictionSlip = i > 1 ? currentGrip * rearGripMultiplier : currentGrip));
 
         // Pit lane messaging/tyre-change/state transitions are now handled entirely by the pit
         // autopilot block above (state.pitPhase); there is no more separate "did the player stop
@@ -1172,6 +1248,8 @@ function animate() {
             gear = Math.min(6, Math.max(1, Math.ceil(kph / 30)));
         } else if (cfg.carClass === 'rally') {
             gear = Math.min(7, Math.max(1, Math.ceil(kph / 35)));
+        } else if (cfg.carClass === 'drift') {
+            gear = Math.min(6, Math.max(1, Math.ceil(kph / 33)));
         } else {
             gear = Math.min(9, Math.max(1, Math.ceil(kph / 38)));
         }
@@ -1254,12 +1332,20 @@ function animate() {
 window.showPitSelectionUI = function () {
     state.tempNextTyreCompoundIdx = state.nextTyreCompoundIdx;
     const modal = document.getElementById('pit-selection-modal');
-    if (modal) modal.style.display = 'block';
+    if (modal) {
+        modal.style.display = 'block';
+        modal.classList.remove('visible');
+        // Two rAFs (not one) so the browser actually paints the display:block/pre-transition
+        // state first - toggling the class in the same frame as display:none->block would skip
+        // straight to the end state with no fade.
+        requestAnimationFrame(() => requestAnimationFrame(() => modal.classList.add('visible')));
+    }
     window.selectPitCompound(state.nextTyreCompoundIdx);
     const repairSection = document.getElementById('pit-repair-section');
     if (repairSection) repairSection.style.display = cfg.damageEnabled ? 'block' : 'none';
     if (cfg.damageEnabled) {
         for (const zone of DAMAGE_ZONES) window.updatePitRepairRow(zone.key);
+        window.updateRepairAllButton();
     }
 };
 
@@ -1278,11 +1364,35 @@ window.updatePitRepairRow = function (zoneKey) {
 // Live-recomputes state.pitHoldT from BASE_PIT_HOLD_T plus the repair time of every
 // currently-selected zone, so a mid-hold selection change immediately extends the
 // remaining wait (the per-frame branch condition in animate() reads state.pitHoldT
-// directly, not a snapshot, so this takes effect on the very next frame).
+// directly, not a snapshot, so this takes effect on the very next frame). This only
+// affects the timed hold once selection is confirmed - see the pitSelectionConfirmed
+// freeze in animate(), so ticking these while still choosing costs nothing.
 window.togglePitRepairZone = function (zoneKey) {
     state.pitRepairSelection[zoneKey] = !state.pitRepairSelection[zoneKey];
     state.pitHoldT = BASE_PIT_HOLD_T + DAMAGE_ZONES.filter((z) => state.pitRepairSelection[z.key]).reduce((sum, z) => sum + z.repairSeconds, 0);
     window.updatePitRepairRow(zoneKey);
+    window.updateRepairAllButton();
+};
+
+// Toggles every damage zone at once: if all are already selected, clears them; otherwise
+// selects all. Mirrors togglePitRepairZone()'s effect on state.pitHoldT.
+window.toggleAllRepairs = function () {
+    const allSelected = DAMAGE_ZONES.every((z) => state.pitRepairSelection[z.key]);
+    const next = !allSelected;
+    for (const zone of DAMAGE_ZONES) {
+        state.pitRepairSelection[zone.key] = next;
+        window.updatePitRepairRow(zone.key);
+    }
+    state.pitHoldT = BASE_PIT_HOLD_T + DAMAGE_ZONES.filter((z) => state.pitRepairSelection[z.key]).reduce((sum, z) => sum + z.repairSeconds, 0);
+    window.updateRepairAllButton();
+};
+
+window.updateRepairAllButton = function () {
+    const btn = document.getElementById('pit-repair-all-btn');
+    if (!btn) return;
+    const allSelected = DAMAGE_ZONES.every((z) => state.pitRepairSelection[z.key]);
+    btn.classList.toggle('all-selected', allSelected);
+    btn.innerText = allSelected ? 'REPAIR ALL ✓' : 'REPAIR ALL';
 };
 
 window.selectPitCompound = function (idx) {
@@ -1307,25 +1417,43 @@ window.selectPitCompound = function (idx) {
 };
 
 window.confirmPitStop = function () {
+    // A tyre swap always happens (defaults to whatever was already picked via the HUD's NEXT
+    // TYRE strategy buttons if the player never touched the modal); repairs apply separately,
+    // only for zones actually toggled on - see the pitRepairsApplied/pitTyresApplied block in
+    // animate(). This just marks the choice as final so the timed hold (frozen until now) starts.
     state.nextTyreCompoundIdx = state.tempNextTyreCompoundIdx;
+    if (state.pitSelectionConfirmed) return; // already confirmed - avoid restarting the fade-out
+    state.pitSelectionConfirmed = true;
     const modal = document.getElementById('pit-selection-modal');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+        modal.classList.remove('visible');
+        setTimeout(() => {
+            modal.style.display = 'none';
+        }, 180);
+    }
 };
 
 window.triggerReset = function () {
     resetCar();
 };
 
-// Keyboard listener for pit lane tyre selection
+// Keyboard listener for pit lane tyre/repair selection. Only live while state.pitPhase is
+// 'pitting', which is fully autopilot-controlled (main.js's animate() ignores inputs.* the
+// whole time - see CLAUDE.md), so reusing A/D/Space here never fights the driving controls.
 window.addEventListener('keydown', (e) => {
-    if (state.pitPhase !== 'pitting') return;
+    if (state.pitPhase !== 'pitting' || state.pitSelectionConfirmed) return;
     if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
         const idx = (state.tempNextTyreCompoundIdx - 1 + 4) % 4;
         window.selectPitCompound(idx);
     } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
         const idx = (state.tempNextTyreCompoundIdx + 1) % 4;
         window.selectPitCompound(idx);
+    } else if (e.key >= '1' && e.key <= '4') {
+        window.selectPitCompound(Number(e.key) - 1);
+    } else if ((e.key === 'r' || e.key === 'R') && cfg.damageEnabled) {
+        window.toggleAllRepairs();
     } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
         window.confirmPitStop();
     }
 });

@@ -567,12 +567,12 @@ export function updateLogic() {
         const p1_target = targetThree;
         const p2_target = state.trackPoints[(lookAheadIdx + 1) % state.trackPoints.length];
         const tan_target = new THREE.Vector3().subVectors(p2_target, p1_target).normalize();
-        // Pit lane offsets are built by generatePitLane()/getPitLaneOffset() using side = (tan.z, 0, -tan.x),
-        // the opposite sign from cross(tangent, up) used for normal racing-line steering elsewhere in this
-        // function. When targetOffset is 0 (not in the pit lane) the sign is irrelevant, but with a nonzero
-        // pit-lane offset the cross(tan,up) convention pushes the AI toward the grandstand side instead of
-        // the actual pit lane tarmac, so it must match generatePitLane()'s convention here.
-        const side_target = new THREE.Vector3(tan_target.z, 0, -tan_target.x).normalize();
+        // Pit lane offsets are built by generatePitLane()/getPitLaneOffset() using side =
+        // (-tan.z, 0, tan.x) - the driver's right, matching real circuits. When targetOffset is
+        // 0 (not in the pit lane) the sign is irrelevant, but with a nonzero pit-lane offset this
+        // must match generatePitLane()'s convention or the AI steers toward the grandstand side
+        // instead of the actual pit lane tarmac.
+        const side_target = new THREE.Vector3(-tan_target.z, 0, tan_target.x).normalize();
         const offsetTargetPos = p1_target.clone().add(side_target.multiplyScalar(targetOffset));
 
         scratch.aiTargetVec.set(offsetTargetPos.x, offsetTargetPos.y, offsetTargetPos.z);
@@ -795,7 +795,14 @@ export function updateLogic() {
         // Same magnitudes as the player's baseEnginePower in main.js, scaled down by this driver's
         // accel skill (set per-difficulty/performance in cars.js) - see the comment there for why
         // this can no longer be a flat AI-only constant that ignores difficulty.
-        let baseAccelForce = (cfg.carClass === 'mini' ? -4500 : cfg.carClass === 'rally' ? -8500 : -12000) * ai.skill.accel;
+        let baseAccelForce =
+            (cfg.carClass === 'mini'
+                ? -4500
+                : cfg.carClass === 'rally'
+                  ? -8500
+                  : cfg.carClass === 'drift'
+                    ? -9000
+                    : -12000) * ai.skill.accel;
         if (slipstreamActive) {
             baseAccelForce *= 1.25;
         }
@@ -806,7 +813,8 @@ export function updateLogic() {
         if (Math.abs(steerVal) > 0.05 && speed < desiredSpeed) {
             baseAccelForce *= ai.style.exitAccelMult;
         }
-        let brakeForce = cfg.carClass === 'mini' ? 1200 : cfg.carClass === 'rally' ? 1600 : 2000;
+        let brakeForce =
+            cfg.carClass === 'mini' ? 1200 : cfg.carClass === 'rally' ? 1600 : cfg.carClass === 'drift' ? 1700 : 2000;
         let force = 0;
         let brakeVal = 0;
 
@@ -860,7 +868,9 @@ export function updateLogic() {
         // Update AI wheel friction based on current tyre compound & wear
         const aiBaseGrip = cfg.weather === 'wet' ? 2.0 : 4.8;
         const aiCurrentGrip = aiBaseGrip * gripFactor;
-        ai.vehicle.wheelInfos.forEach((w) => (w.frictionSlip = aiCurrentGrip));
+        // Same drift rear-grip reduction as the player (main.js) - see the comment there.
+        const aiRearGripMultiplier = cfg.carClass === 'drift' ? 0.70 : 1.0;
+        ai.vehicle.wheelInfos.forEach((w, i) => (w.frictionSlip = i > 1 ? aiCurrentGrip * aiRearGripMultiplier : aiCurrentGrip));
 
         if (cfg.raceStyle === 'rally') {
             const f = force * state.surfaceForce * 0.5;
@@ -917,13 +927,33 @@ export function updateLogic() {
     }
 }
 
+// Caps rendered rows instead of one per car - with grids now up to 22, showing every
+// car meant rebuilding 20+ DOM rows every single frame (this runs once per animate()
+// tick while racing). Real-broadcast-style instead: always show the top MAX_SHOWN,
+// plus the player's own row (with a "..." divider) if they've fallen further back.
+const LEADERBOARD_MAX_SHOWN = 6;
+
 function updateLiveLeaderboard(rankings) {
     const container = document.getElementById('leaderboard-hud');
     if (!container) return;
     container.style.display = 'block';
     container.innerHTML = '';
     const ptSpacing = state.trackPoints.length > 1 ? state.trackPoints[0].distanceTo(state.trackPoints[1]) : 1.0;
-    rankings.forEach((r, i) => {
+
+    const playerIdx = rankings.findIndex((r) => r.name === 'Player');
+    const indices = [];
+    for (let i = 0; i < Math.min(LEADERBOARD_MAX_SHOWN, rankings.length); i++) indices.push(i);
+    if (playerIdx >= LEADERBOARD_MAX_SHOWN) indices.push(playerIdx);
+
+    let prevIdx = -1;
+    indices.forEach((i) => {
+        const r = rankings[i];
+        if (prevIdx !== -1 && i !== prevIdx + 1) {
+            const divider = document.createElement('div');
+            divider.className = 'leaderboard-row leaderboard-divider';
+            divider.innerHTML = '<span class="leaderboard-pos">&middot;&middot;&middot;</span>';
+            container.appendChild(divider);
+        }
         const row = document.createElement('div');
         row.className = 'leaderboard-row';
         if (r.name === 'Player') row.classList.add('player-row');
@@ -951,5 +981,6 @@ function updateLiveLeaderboard(rankings) {
             <span class="leaderboard-gap">${gapText}</span>
         `;
         container.appendChild(row);
+        prevIdx = i;
     });
 }

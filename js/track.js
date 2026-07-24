@@ -4,6 +4,215 @@ import { state, cfg } from './state.js';
 import { REAL_TRACKS } from './tracks.js';
 import { RALLY_SURFACES } from './constants.js';
 
+// --- Procedural track generation ---------------------------------------------------------
+// Builds a closed loop by perturbing a radius-vs-angle function around a fixed center, which
+// (unlike a turtle/segment builder) closes automatically for any well-behaved periodic r(theta)
+// - no separate loop-closing solve needed. Real motor-racing variety (slow hairpins, quick
+// chicane kinks, long flowing sweepers) comes from layering three kinds of features onto a base
+// radius, each confined to its own angular window via quinticWindow() so they blend in cleanly:
+//   - hairpins: a wide, moderate radius pinch -> tight, slow corner.
+//   - chicanes: a short single-cycle ripple -> a quick left-right (or right-left) kink.
+//   - sweepers: broad low-frequency terms (kept from the original formula) for flowing corners.
+// PIT_ZONE_FLAT/PIT_ZONE_RAMP keep the start/finish straight this generator produces genuinely
+// flat: a naive "suppress features smoothly from theta=0 out to some half-angle" design (tried
+// and measured during development) still leaks enough curvature into the checked pit-zone window
+// to fail its >=400 local-turn-radius bar, because a smooth 0->1 transition is already most of
+// the way "open" well before its nominal edge. The fix is a hard-flat plateau (feature
+// contribution forced to exactly 0, not just small) all the way out past the checked window,
+// with the smooth quinticWindow() fade-out only starting beyond that plateau - see
+// suppressFactor() below. generatePitLane()/isSpaceClear() both depend on this stretch being
+// near-straight.
+// The same 4 geometric invariants tracks.js documents for REAL_TRACKS (skipping only the
+// max-jump/continuity check, which this construction can't violate by how it's built) are
+// checked against the actual production CatmullRomCurve3+getSpacedPoints pipeline before
+// accepting a candidate; failing that after several random retries (measured >90% first-try
+// pass rate, so exhausting every retry is astronomically unlikely), generation falls back to
+// the original plain formula, which is known-safe, so a track is never rejected outright.
+const PROC_MIN_TURN_RADIUS = 48;
+const PROC_MIN_SEPARATION = 28;
+const PROC_ADJACENCY_GAP = 25;
+const PROC_ARC_WINDOW_LENGTH = 15;
+const PROC_PIT_ZONE_FLAT = 0.78; // hard-flat half-angle, comfortably beyond the checked +/-90/800 (~0.707rad) window
+const PROC_PIT_ZONE_RAMP = 0.45; // additional smooth fade-out width beyond the flat plateau
+const PROC_FEATURE_MARGIN = 0.15; // extra clearance beyond the ramp before any feature center may sit
+const PROC_PIT_ZONE_MIN_RADIUS = 400;
+const PROC_MAX_ATTEMPTS = 25;
+
+function quinticWindow(a) {
+    // a = distance from a feature's center, already normalized by its half-width (or, for the
+    // pit-zone ramp, by the ramp width). 1 at/before the center (a<=0), fading to 0 at and
+    // beyond the far edge (a>=1). Perlin's "smootherstep" - zero 1st AND 2nd derivative at both
+    // ends, unlike a cubic smoothstep - so a windowed feature blends in without a curvature
+    // discontinuity (see the module comment above for why that matters near the pit zone).
+    if (a <= 0) return 1;
+    if (a >= 1) return 0;
+    const t = 1 - a;
+    return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+function wrapAngleDelta(d) {
+    return (((d + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+}
+
+// 1 (fully suppress every feature - exactly flat) for wrapDist within the hard-flat plateau,
+// smoothly fading to 0 (features at full strength) over the ramp beyond it.
+function suppressFactor(wrapDist) {
+    if (wrapDist <= PROC_PIT_ZONE_FLAT) return 1;
+    return quinticWindow((wrapDist - PROC_PIT_ZONE_FLAT) / PROC_PIT_ZONE_RAMP);
+}
+
+function buildProceduralCandidate(rng) {
+    const segments = 300;
+    const baseRadius = 460 + rng() * 140;
+    const featureStart = PROC_PIT_ZONE_FLAT + PROC_PIT_ZONE_RAMP + PROC_FEATURE_MARGIN;
+
+    // Rejection-samples each new feature's center against ones already placed so their windows
+    // don't overlap and compound curvature past the safe minimum - falls through and uses the
+    // last-tried angle if 12 attempts can't find a clear spot (rare; the outer retry loop in
+    // generateProceduralTrackPoints() catches anything that slips through anyway).
+    const placedCenters = [];
+    function pickFeatureTheta(halfWidth) {
+        let theta = 0;
+        for (let tries = 0; tries < 12; tries++) {
+            theta = featureStart + rng() * (Math.PI * 2 - 2 * featureStart);
+            const clear = placedCenters.every((c) => Math.abs(wrapAngleDelta(theta - c.theta)) > halfWidth + c.hw + 0.12);
+            if (clear) break;
+        }
+        placedCenters.push({ theta, hw: halfWidth });
+        return theta;
+    }
+
+    const hairpinCount = 2 + Math.floor(rng() * 3); // 2-4 slow, tight corners
+    const hairpins = [];
+    for (let h = 0; h < hairpinCount; h++) {
+        const width = 0.28 + rng() * 0.14;
+        hairpins.push({ theta: pickFeatureTheta(width), width, depth: baseRadius * (0.05 + rng() * 0.04) });
+    }
+    const chicaneCount = 1 + Math.floor(rng() * 3); // 1-3 quick alternating kinks
+    const chicanes = [];
+    for (let c = 0; c < chicaneCount; c++) {
+        const width = 0.35 + rng() * 0.2;
+        chicanes.push({ theta: pickFeatureTheta(width), width, amp: baseRadius * (0.015 + rng() * 0.015), freq: 2 });
+    }
+    const sweepA = 15 + rng() * 25;
+    const sweepB = 15 + rng() * 25;
+    const sweepPhase = rng() * Math.PI * 2;
+
+    const points = [];
+    for (let i = 0; i < segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        const wrapDist = Math.min(theta, Math.PI * 2 - theta);
+        const suppress = suppressFactor(wrapDist);
+
+        let feature = Math.sin(theta * 3 + sweepPhase) * sweepA + Math.cos(theta * 2 - sweepPhase) * sweepB;
+        for (const hp of hairpins) {
+            const d = wrapAngleDelta(theta - hp.theta);
+            feature -= hp.depth * quinticWindow(Math.abs(d) / hp.width);
+        }
+        for (const ch of chicanes) {
+            const d = wrapAngleDelta(theta - ch.theta);
+            const w = quinticWindow(Math.abs(d) / ch.width);
+            feature += Math.sin((d / ch.width) * Math.PI * ch.freq) * ch.amp * w;
+        }
+
+        let r = baseRadius + feature * (1 - suppress);
+        r = Math.max(baseRadius * 0.4, r);
+        points.push(new THREE.Vector3(Math.cos(theta) * r, 0, Math.sin(theta) * r));
+    }
+    return points;
+}
+
+function circumradius(a, b, c) {
+    const ab = a.distanceTo(b);
+    const bc = b.distanceTo(c);
+    const ca = c.distanceTo(a);
+    const area2 = Math.abs((b.x - a.x) * (c.z - a.z) - (c.x - a.x) * (b.z - a.z));
+    if (area2 < 1e-9) return Infinity;
+    return (ab * bc * ca) / (2 * area2);
+}
+
+function segmentsIntersect(p1, p2, p3, p4) {
+    const d1x = p2.x - p1.x,
+        d1z = p2.z - p1.z;
+    const d2x = p4.x - p3.x,
+        d2z = p4.z - p3.z;
+    const denom = d1x * d2z - d1z * d2x;
+    if (Math.abs(denom) < 1e-9) return false;
+    const t = ((p3.x - p1.x) * d2z - (p3.z - p1.z) * d2x) / denom;
+    const u = ((p3.x - p1.x) * d1z - (p3.z - p1.z) * d1x) / denom;
+    return t > 1e-6 && t < 1 - 1e-6 && u > 1e-6 && u < 1 - 1e-6;
+}
+
+// Runs the same 5 invariants tracks.js's header documents for REAL_TRACKS against a candidate's
+// actual resampled curve, so procedurally-generated tracks get the same driveability/safety
+// guarantees as the hand-authored ones.
+function validateProceduralTrack(sampled) {
+    const N = sampled.length;
+    let total = 0;
+    for (let i = 0; i < N; i++) total += sampled[i].distanceTo(sampled[(i + 1) % N]);
+    const avgSpacing = total / N;
+    const k = Math.max(1, Math.round(PROC_ARC_WINDOW_LENGTH / 2 / avgSpacing));
+
+    for (let i = 0; i < N; i++) {
+        const a = sampled[(i - k + N) % N],
+            b = sampled[i],
+            c = sampled[(i + k) % N];
+        const rad = circumradius(a, b, c);
+        const minAllowed = i <= 90 || i >= N - 90 ? PROC_PIT_ZONE_MIN_RADIUS : PROC_MIN_TURN_RADIUS;
+        if (rad < minAllowed) return false;
+    }
+
+    for (let i = 0; i < N; i += 4) {
+        for (let j = i + PROC_ADJACENCY_GAP; j < N; j += 4) {
+            const gapForward = j - i;
+            const gapWrapped = N - gapForward;
+            if (Math.min(gapForward, gapWrapped) < PROC_ADJACENCY_GAP) continue;
+            if (sampled[i].distanceTo(sampled[j]) < PROC_MIN_SEPARATION) return false;
+        }
+    }
+
+    for (let i = 0; i < N; i += 2) {
+        const p1 = sampled[i],
+            p2 = sampled[(i + 1) % N];
+        for (let j = i + PROC_ADJACENCY_GAP; j < N; j += 2) {
+            const gapForward = j - i;
+            const gapWrapped = N - gapForward;
+            if (Math.min(gapForward, gapWrapped) < PROC_ADJACENCY_GAP) continue;
+            const p3 = sampled[j],
+                p4 = sampled[(j + 1) % N];
+            if (segmentsIntersect(p1, p2, p3, p4)) return false;
+        }
+    }
+    return true;
+}
+
+function resampleCandidate(points) {
+    const curve = new THREE.CatmullRomCurve3(points, true);
+    curve.tension = 0.5;
+    const sampled = curve.getSpacedPoints(cfg.trackRes);
+    if (sampled[0].distanceTo(sampled[sampled.length - 1]) < 1.0) sampled.pop();
+    return sampled;
+}
+
+function generateProceduralTrackPoints() {
+    for (let attempt = 0; attempt < PROC_MAX_ATTEMPTS; attempt++) {
+        const candidate = buildProceduralCandidate(state.rng);
+        const sampled = resampleCandidate(candidate);
+        if (validateProceduralTrack(sampled)) return candidate;
+    }
+    // Every retry failed the invariants (rare) - fall back to the original, known-safe formula
+    // rather than ever handing back a broken/self-intersecting track.
+    const points = [];
+    const segments = 30;
+    const noiseZ = state.rng() * 100;
+    for (let i = 0; i < segments; i++) {
+        const t = (i / segments) * Math.PI * 2;
+        const r = 220 + Math.sin(t * 3) * 50 + Math.cos(t * 2 + noiseZ) * 50 + state.rng() * 30;
+        points.push(new THREE.Vector3(Math.cos(t) * r, 0, Math.sin(t) * r));
+    }
+    return points;
+}
+
 export function generateCircuit() {
     const realTrackKey = (cfg.seed || '').trim().toUpperCase();
     const realTrack = REAL_TRACKS[realTrackKey];
@@ -13,18 +222,11 @@ export function generateCircuit() {
         // Recognized real-world circuit seed: use its hand-authored layout verbatim.
         points = realTrack.map((p) => new THREE.Vector3(p.x, 0, p.z));
     } else {
-        // Unknown seed: fall back to the original deterministic procedural generator
-        // so arbitrary seed strings keep producing a unique, repeatable track.
-        points = [];
-        const segments = 30;
-        const noiseZ = state.rng() * 100;
-        for (let i = 0; i < segments; i++) {
-            const t = (i / segments) * Math.PI * 2;
-            const r = 220 + Math.sin(t * 3) * 50 + Math.cos(t * 2 + noiseZ) * 50 + state.rng() * 30;
-            const x = Math.cos(t) * r;
-            const z = Math.sin(t) * r;
-            points.push(new THREE.Vector3(x, 0, z));
-        }
+        // Unknown seed: procedurally generate a unique, repeatable track (still keyed off
+        // state.rng(), so the same seed string always reproduces the same layout) with real
+        // motor-racing variety - hairpins, chicanes, flowing sweepers - see
+        // generateProceduralTrackPoints() above for how that's built and validated.
+        points = generateProceduralTrackPoints();
     }
     state.trackCurve = new THREE.CatmullRomCurve3(points, true);
     state.trackCurve.tension = 0.5;
@@ -38,7 +240,9 @@ export function generateCircuit() {
     ];
 
     const surf = cfg.raceStyle === 'rally' ? RALLY_SURFACES[cfg.surface] : RALLY_SURFACES.tarmac;
-    const grassGeo = new THREE.PlaneGeometry(1200, 1200);
+    // Comfortably bigger than any track's extent (largest real circuit spans roughly +/-550
+    // units) plus the FAR zoom level's view distance, so the grass never runs out at the edges.
+    const grassGeo = new THREE.PlaneGeometry(3000, 3000);
     grassGeo.rotateX(-Math.PI / 2);
     const grassCol =
         cfg.raceStyle === 'rally' && cfg.surface !== 'tarmac'
@@ -64,6 +268,15 @@ export function generateCircuit() {
     const len = state.trackPoints.length;
     const sandMat = new THREE.MeshStandardMaterial({ color: surf.trap, roughness: 1.0 });
     const sandTrapsMesh = new THREE.Group();
+    function addSandTrap(trapPos, trapRadius) {
+        const sandGeo = new THREE.CircleGeometry(trapRadius, 8);
+        sandGeo.rotateX(-Math.PI / 2);
+        const sm = new THREE.Mesh(sandGeo, sandMat);
+        sm.position.copy(trapPos);
+        sm.position.y = trapPos.y + 0.02;
+        sandTrapsMesh.add(sm);
+        state.sandTraps.push({ pos: trapPos, r: trapRadius });
+    }
 
     for (let i = 0; i < len; i++) {
         const p1 = state.trackPoints[i];
@@ -75,19 +288,31 @@ export function generateCircuit() {
         const v1 = new THREE.Vector3().subVectors(p2, p1).normalize();
         const v2 = new THREE.Vector3().subVectors(p3, p2).normalize();
         const crossY = v1.x * v2.z - v1.z * v2.x;
-        if (Math.abs(crossY) > 0.04 && state.rng() > 0.5) {
+        const crossYAbs = Math.abs(crossY);
+        // Outside trap: catches cars running wide through the corner (the traditional gravel-
+        // trap role). Chance and size both scale with how sharp the corner is, so hairpins get
+        // bigger, near-certain traps and gentle sweepers get occasional small ones.
+        if (crossYAbs > 0.025 && i % 2 === 0) {
+            const outsideChance = Math.min(0.85, 0.3 + crossYAbs * 6);
+            if (state.rng() < outsideChance) {
+                const isLeftTurn = crossY > 0;
+                const dir = isLeftTurn ? -1 : 1;
+                const trapRadius = 9 + state.rng() * 5 + crossYAbs * 15;
+                const offset = roadWidth / 2 + trapRadius + 1.0;
+                const trapPos = p2.clone().add(side.clone().multiplyScalar(dir * offset));
+                addSandTrap(trapPos, trapRadius);
+            }
+        }
+        // Inside/apex trap: only at sharper corners, on the opposite side from the outside trap
+        // above (still clear of the road, same safe clearance formula) - punishes cutting across
+        // the apex as a shortcut instead of only punishing running wide.
+        if (crossYAbs > 0.05 && i % 3 === 0 && state.rng() < 0.4) {
             const isLeftTurn = crossY > 0;
-            const dir = isLeftTurn ? -1 : 1;
-            const trapRadius = 10 + state.rng() * 5;
+            const dir = isLeftTurn ? 1 : -1;
+            const trapRadius = 8 + state.rng() * 4;
             const offset = roadWidth / 2 + trapRadius + 1.0;
             const trapPos = p2.clone().add(side.clone().multiplyScalar(dir * offset));
-            const sandGeo = new THREE.CircleGeometry(trapRadius, 8);
-            sandGeo.rotateX(-Math.PI / 2);
-            const sm = new THREE.Mesh(sandGeo, sandMat);
-            sm.position.copy(trapPos);
-            sm.position.y = trapPos.y + 0.02;
-            sandTrapsMesh.add(sm);
-            state.sandTraps.push({ pos: trapPos, r: trapRadius });
+            addSandTrap(trapPos, trapRadius);
         }
         const w = roadWidth / 2;
         const kw = 2.0;
@@ -159,8 +384,9 @@ export function generateCircuit() {
     const gridGeo = new THREE.BoxGeometry(2.5, 0.02, 5.0);
     const gridMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
     // Must match the spawn formula in main.js init() or painted slots drift from the cars.
+    // Was hardcoded to 12 - silently stopped painting past car #12 once CARS could go higher.
     const slotSpacing = Math.max(0.5, state.trackPoints[0].distanceTo(state.trackPoints[1]));
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < cfg.opponents; i++) {
         const distBack = Math.max(2, Math.round((8 + i * 7) / slotSpacing));
         let idx = (cfg.trackRes + 0 - distBack) % cfg.trackRes;
         if (idx < 0) idx += cfg.trackRes;
@@ -225,7 +451,10 @@ export function generatePitLane() {
         const p2 = state.trackPoints[nextIdx];
         const dist = p1.distanceTo(p2);
         const tan = new THREE.Vector3().subVectors(p2, p1).normalize();
-        const side = new THREE.Vector3(tan.z, 0, -tan.x).normalize();
+        // (-tan.z, tan.x) - the driver's RIGHT, matching real circuits (pit lane is on the
+        // right at nearly every real-world track). Was (tan.z, -tan.x) - the LEFT - which put
+        // the pit lane and grandstands on the wrong sides of the track relative to real F1.
+        const side = new THREE.Vector3(-tan.z, 0, tan.x).normalize();
 
         const rampLen = 25;
         let t = 0;

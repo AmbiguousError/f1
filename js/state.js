@@ -51,6 +51,12 @@ export const state = {
     pitBoxPosition: null,
     pitPhase: 'none',
     pitStartTime: 0,
+    // While in the pit box, the timed hold (pitHoldT) is frozen until the player confirms their
+    // tyre/repair choice (or PIT_SELECTION_TIMEOUT elapses and main.js auto-confirms) - see the
+    // pitSelectionConfirmed check in animate(). pitAwaitStartTime marks when the modal appeared,
+    // for that timeout.
+    pitSelectionConfirmed: false,
+    pitAwaitStartTime: 0,
 
     aiCars: [],
 

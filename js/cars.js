@@ -5,6 +5,7 @@ import {
     buildCarMesh,
     buildMiniMesh,
     buildRallyMesh,
+    buildDriftMesh,
     buildTyreStripe,
     wGeoFront,
     wGeoRear,
@@ -42,6 +43,7 @@ function collectCarMaterials(mesh, wheels) {
 export function createAICar(startIdx, offset, color, id, name) {
     const isMini = cfg.carClass === 'mini';
     const isRally = cfg.carClass === 'rally';
+    const isDrift = cfg.carClass === 'drift';
     const p1 = state.trackPoints[startIdx];
     const nextIdx = (startIdx + 5) % state.trackPoints.length;
     const p2 = state.trackPoints[nextIdx];
@@ -49,16 +51,18 @@ export function createAICar(startIdx, offset, color, id, name) {
     const up = new THREE.Vector3(0, 1, 0);
     const side = new THREE.Vector3().crossVectors(tangent, up).normalize();
     const startPos = p1.clone().add(side.multiplyScalar(offset));
-    const body = new CANNON.Body({ mass: isRally ? 1100 : 800 });
+    const body = new CANNON.Body({ mass: isRally ? 1100 : isDrift ? 900 : 800 });
     body.linearDamping = 0.05;
     body.angularDamping = 0.5;
     const colSize = isMini
         ? new CANNON.Vec3(0.7, 0.4, 1.2)
         : isRally
           ? new CANNON.Vec3(0.8, 0.45, 1.4)
-          : new CANNON.Vec3(0.8, 0.3, 2.2);
+          : isDrift
+            ? new CANNON.Vec3(0.75, 0.35, 1.5)
+            : new CANNON.Vec3(0.8, 0.3, 2.2);
     const shape = new CANNON.Box(colSize);
-    body.addShape(shape, new CANNON.Vec3(0, isMini ? 0.2 : isRally ? 0.2 : 0.4, 0));
+    body.addShape(shape, new CANNON.Vec3(0, isMini ? 0.2 : isRally ? 0.2 : isDrift ? 0.25 : 0.4, 0));
     body.collisionFilterGroup = GROUP_CAR;
     body.collisionFilterMask = GROUP_WORLD | GROUP_CAR;
     if (cfg.stewardPenalties || cfg.damageEnabled) attachCollisionHandler(body, id + 1);
@@ -67,7 +71,13 @@ export function createAICar(startIdx, offset, color, id, name) {
     const angle = Math.atan2(p2.x - p1.x, p2.z - p1.z);
     body.quaternion.setFromEuler(0, angle, 0);
 
-    const mesh = isMini ? buildMiniMesh(color) : isRally ? buildRallyMesh(color) : buildCarMesh(color);
+    const mesh = isMini
+        ? buildMiniMesh(color)
+        : isRally
+          ? buildRallyMesh(color)
+          : isDrift
+            ? buildDriftMesh(color)
+            : buildCarMesh(color);
     state.scene.add(mesh);
     body.userData = { mesh: mesh };
     const vehicle = new CANNON.RaycastVehicle({
@@ -78,7 +88,7 @@ export function createAICar(startIdx, offset, color, id, name) {
     });
     const currentGrip = cfg.weather === 'wet' ? 2.0 : 5.0;
     const wRadiusF = isMini ? 0.3 : 0.45;
-    const wRadiusR = isMini ? 0.3 : isRally ? 0.45 : 0.6;
+    const wRadiusR = isMini ? 0.3 : isRally || isDrift ? 0.45 : 0.6;
     const wOpts = {
         radius: wRadiusF,
         directionLocal: new CANNON.Vec3(0, -1, 0),
@@ -95,14 +105,22 @@ export function createAICar(startIdx, offset, color, id, name) {
         useCustomSlidingRotationalSpeed: true,
         customSlidingRotationalSpeed: -30,
     };
-    const fZ = isMini ? 0.9 : isRally ? 1.05 : 1.85;
-    const rZ = isMini ? -0.9 : isRally ? -1.15 : -2.1;
-    const width = isMini ? 0.7 : isRally ? 0.85 : 1.1;
-    const h = isMini ? 0.2 : isRally ? 0.35 : 0.4;
+    const fZ = isMini ? 0.9 : isRally ? 1.05 : isDrift ? 1.6 : 1.85;
+    const rZ = isMini ? -0.9 : isRally ? -1.15 : isDrift ? -1.8 : -2.1;
+    const width = isMini ? 0.7 : isRally ? 0.85 : isDrift ? 0.8 : 1.1;
+    const h = isMini ? 0.2 : isRally ? 0.35 : isDrift ? 0.3 : 0.4;
+    // Drift class: rear wheels get noticeably less grip than the front (classic oversteer
+    // setup) so the back end steps out under power/steering instead of gripping through the
+    // corner like every other class - this, not a steering-angle change, is what makes it slide.
+    // Tuned empirically (headless playtest, sustained full-lock steering at speed): a short
+    // wheelbase (fZ/rZ close together) made it spin out almost instantly regardless of grip, so
+    // fZ/rZ stay closer to the stable F1 values - the reduced rear grip alone is what produces a
+    // progressive, catchable slide instead of an immediate uncontrollable spin.
+    const rearGripMultiplier = isDrift ? 0.70 : 1.0;
     vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(width, h, fZ) });
     vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(-width, h, fZ) });
-    vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(width, h, rZ), radius: wRadiusR });
-    vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(-width, h, rZ), radius: wRadiusR });
+    vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(width, h, rZ), radius: wRadiusR, frictionSlip: currentGrip * rearGripMultiplier });
+    vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(-width, h, rZ), radius: wRadiusR, frictionSlip: currentGrip * rearGripMultiplier });
     vehicle.addToWorld(state.world);
     const wheels = [];
     let aiStripes = [];
@@ -125,6 +143,9 @@ export function createAICar(startIdx, offset, color, id, name) {
         } else if (isRally) {
             tire = new THREE.Mesh(wGeoFront, wMatCar);
             rim = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.4, 16), rimMatCar);
+        } else if (isDrift) {
+            tire = new THREE.Mesh(wGeoFront, wMatCar);
+            rim = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.4, 16), rimMatCar);
         } else {
             tire = new THREE.Mesh(isRear ? wGeoRear : wGeoFront, wMatCar);
             rim = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, isRear ? 0.7 : 0.4, 16), rimMatCar);
@@ -134,7 +155,7 @@ export function createAICar(startIdx, offset, color, id, name) {
         rim.rotation.z = Math.PI / 2;
         grp.add(tire);
         grp.add(rim);
-        const stripe = buildTyreStripe(isMini, isRally ? false : isRear, startingCompound);
+        const stripe = buildTyreStripe(isMini, isRally || isDrift ? false : isRear, startingCompound);
         if (i % 2 !== 0) stripe.position.x *= -1;
         grp.add(stripe);
         aiStripes.push(stripe);
@@ -196,6 +217,10 @@ export function createAICar(startIdx, offset, color, id, name) {
         // produce a real target instead of AI chasing an unreachable circuit-class number.
         speedBase = Math.floor(speedBase * 0.75);
         speedVar = 25;
+    } else if (isDrift) {
+        // Match the player's F1-to-drift top-speed ratio (main.js) - see comment above.
+        speedBase = Math.floor(speedBase * 0.76);
+        speedVar = 25;
     }
     const skill = {
         topSpeed: speedBase + Math.random() * speedVar,
@@ -248,6 +273,7 @@ export function createAICar(startIdx, offset, color, id, name) {
 export function createF1Car(startIdx, flyingStart, offset = 0) {
     const isMini = cfg.carClass === 'mini';
     const isRally = cfg.carClass === 'rally';
+    const isDrift = cfg.carClass === 'drift';
     const p1 = state.trackPoints[startIdx];
     const nextIdx = (startIdx + 5) % state.trackPoints.length;
     const p2 = state.trackPoints[nextIdx];
@@ -256,16 +282,18 @@ export function createF1Car(startIdx, flyingStart, offset = 0) {
     const side = new THREE.Vector3().crossVectors(tangent, up).normalize();
 
     const startPos = p1.clone().add(side.multiplyScalar(offset));
-    state.chassisBody = new CANNON.Body({ mass: isRally ? 1100 : 800 });
+    state.chassisBody = new CANNON.Body({ mass: isRally ? 1100 : isDrift ? 900 : 800 });
     state.chassisBody.linearDamping = 0.05;
     state.chassisBody.angularDamping = 0.5;
     const colSize = isMini
         ? new CANNON.Vec3(0.7, 0.4, 1.2)
         : isRally
           ? new CANNON.Vec3(0.8, 0.45, 1.4)
-          : new CANNON.Vec3(0.8, 0.3, 2.2);
+          : isDrift
+            ? new CANNON.Vec3(0.75, 0.35, 1.5)
+            : new CANNON.Vec3(0.8, 0.3, 2.2);
     const chassisShape = new CANNON.Box(colSize);
-    state.chassisBody.addShape(chassisShape, new CANNON.Vec3(0, isMini ? 0.2 : isRally ? 0.2 : 0.4, 0));
+    state.chassisBody.addShape(chassisShape, new CANNON.Vec3(0, isMini ? 0.2 : isRally ? 0.2 : isDrift ? 0.25 : 0.4, 0));
     state.chassisBody.collisionFilterGroup = GROUP_CAR;
     state.chassisBody.collisionFilterMask = GROUP_WORLD | GROUP_CAR;
     if (cfg.stewardPenalties || cfg.damageEnabled) attachCollisionHandler(state.chassisBody, 0);
@@ -286,7 +314,9 @@ export function createF1Car(startIdx, flyingStart, offset = 0) {
         ? buildMiniMesh(cfg.teamColor)
         : isRally
           ? buildRallyMesh(cfg.teamColor)
-          : buildCarMesh(cfg.teamColor);
+          : isDrift
+            ? buildDriftMesh(cfg.teamColor)
+            : buildCarMesh(cfg.teamColor);
     if (cfg.time === 'sunset') {
         const hLight = new THREE.SpotLight(0xffffff, 5, 300, Math.PI / 5, 0.5, 1);
         hLight.position.set(0, 1, 1);
@@ -306,7 +336,7 @@ export function createF1Car(startIdx, flyingStart, offset = 0) {
     });
     const currentGrip = cfg.weather === 'wet' ? 2.0 : 5.0;
     const wRadiusF = isMini ? 0.3 : 0.45;
-    const wRadiusR = isMini ? 0.3 : isRally ? 0.45 : 0.6;
+    const wRadiusR = isMini ? 0.3 : isRally || isDrift ? 0.45 : 0.6;
     const wOpts = {
         radius: wRadiusF,
         directionLocal: new CANNON.Vec3(0, -1, 0),
@@ -323,14 +353,22 @@ export function createF1Car(startIdx, flyingStart, offset = 0) {
         useCustomSlidingRotationalSpeed: true,
         customSlidingRotationalSpeed: -30,
     };
-    const fZ = isMini ? 0.9 : isRally ? 1.05 : 1.85;
-    const rZ = isMini ? -0.9 : isRally ? -1.15 : -2.1;
-    const width = isMini ? 0.7 : isRally ? 0.85 : 1.1;
-    const h = isMini ? 0.2 : isRally ? 0.35 : 0.4;
+    const fZ = isMini ? 0.9 : isRally ? 1.05 : isDrift ? 1.6 : 1.85;
+    const rZ = isMini ? -0.9 : isRally ? -1.15 : isDrift ? -1.8 : -2.1;
+    const width = isMini ? 0.7 : isRally ? 0.85 : isDrift ? 0.8 : 1.1;
+    const h = isMini ? 0.2 : isRally ? 0.35 : isDrift ? 0.3 : 0.4;
+    // Drift class: rear wheels get noticeably less grip than the front (classic oversteer
+    // setup) so the back end steps out under power/steering instead of gripping through the
+    // corner like every other class - this, not a steering-angle change, is what makes it slide.
+    // Tuned empirically (headless playtest, sustained full-lock steering at speed): a short
+    // wheelbase (fZ/rZ close together) made it spin out almost instantly regardless of grip, so
+    // fZ/rZ stay closer to the stable F1 values - the reduced rear grip alone is what produces a
+    // progressive, catchable slide instead of an immediate uncontrollable spin.
+    const rearGripMultiplier = isDrift ? 0.70 : 1.0;
     state.vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(width, h, fZ) });
     state.vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(-width, h, fZ) });
-    state.vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(width, h, rZ), radius: wRadiusR });
-    state.vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(-width, h, rZ), radius: wRadiusR });
+    state.vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(width, h, rZ), radius: wRadiusR, frictionSlip: currentGrip * rearGripMultiplier });
+    state.vehicle.addWheel({ ...wOpts, chassisConnectionPointLocal: new CANNON.Vec3(-width, h, rZ), radius: wRadiusR, frictionSlip: currentGrip * rearGripMultiplier });
     state.vehicle.addToWorld(state.world);
 
     const wMatCar = wMat.clone();
@@ -345,6 +383,9 @@ export function createF1Car(startIdx, flyingStart, offset = 0) {
         } else if (isRally) {
             tire = new THREE.Mesh(wGeoFront, wMatCar);
             rim = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.4, 16), rimMatCar);
+        } else if (isDrift) {
+            tire = new THREE.Mesh(wGeoFront, wMatCar);
+            rim = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.4, 16), rimMatCar);
         } else {
             tire = new THREE.Mesh(isRear ? wGeoRear : wGeoFront, wMatCar);
             rim = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, isRear ? 0.7 : 0.4, 16), rimMatCar);
@@ -354,7 +395,7 @@ export function createF1Car(startIdx, flyingStart, offset = 0) {
         rim.rotation.z = Math.PI / 2;
         grp.add(tire);
         grp.add(rim);
-        const stripe = buildTyreStripe(isMini, isRally ? false : isRear, state.tyreCompoundIdx);
+        const stripe = buildTyreStripe(isMini, isRally || isDrift ? false : isRear, state.tyreCompoundIdx);
         if (i % 2 !== 0) stripe.position.x *= -1;
         grp.add(stripe);
         state.playerTyreStripes.push(stripe);

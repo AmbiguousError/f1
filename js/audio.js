@@ -70,6 +70,7 @@ export function updateAudio(speed) {
     state.skidGain.gain.setTargetAtTime(skidVol, state.audioCtx.currentTime, 0.1);
     const isMini = cfg.carClass === 'mini';
     const isRally = cfg.carClass === 'rally';
+    const isDrift = cfg.carClass === 'drift';
     let gear, rpm, frequency;
     if (isMini) {
         gear = Math.min(6, Math.max(1, Math.ceil(kph / 30)));
@@ -83,6 +84,12 @@ export function updateAudio(speed) {
         const gearMax = gear * 35;
         rpm = (kph - gearMin) / (gearMax - gearMin);
         frequency = 40 + rpm * 150 + gear * 12;
+    } else if (isDrift) {
+        gear = Math.min(6, Math.max(1, Math.ceil(kph / 33)));
+        const gearMin = (gear - 1) * 33;
+        const gearMax = gear * 33;
+        rpm = (kph - gearMin) / (gearMax - gearMin);
+        frequency = 45 + rpm * 180 + gear * 14;
     } else {
         gear = Math.min(9, Math.max(1, Math.ceil(kph / 38)));
         const gearMin = (gear - 1) * 38;

@@ -8,189 +8,235 @@
     </head>
     <body>
         <div id="start-screen">
-            <h1 style="color: white; font-size: 48px; margin: 0 0 10px 0; font-style: italic; letter-spacing: -2px">
-                FORMULA <span style="color: #e74c3c">GEN</span>
-            </h1>
+          <div class="start-inner">
+            <h1 class="start-title">FORMULA <span class="accent">GEN</span></h1>
 
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">MODE</span>
-                <button class="opt-btn selected" id="mode-single" onclick="setMode('single', this)">SINGLE GP</button>
-                <button class="opt-btn" id="mode-season" onclick="setMode('season', this)">SEASON</button>
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">CLASS</span>
-                <button class="opt-btn selected" id="class-f1" onclick="setClass('f1', this)">F1</button>
-                <button class="opt-btn" id="class-mini" onclick="setClass('mini', this)">MINI</button>
-                <button class="opt-btn" id="class-rally" onclick="setClass('rally', this)">RALLY</button>
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">DRIVER</span>
-                <input
-                    type="text"
-                    id="driver-name-input"
-                    value=""
-                    maxlength="12"
-                    placeholder="PLAYER"
-                    style="width: 140px; font-size: 14px"
-                />
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">TEAM</span>
-                <button
-                    class="team-btn"
-                    style="background: #dc0000"
-                    title="Ferrari"
-                    onclick="setTeam(0xdc0000, this, 'Ferrari')"
-                ></button>
-                <button
-                    class="team-btn"
-                    style="background: #000080"
-                    title="Red Bull"
-                    onclick="setTeam(0x000080, this, 'Red Bull')"
-                ></button>
-                <button
-                    class="team-btn"
-                    style="background: #00d2be"
-                    title="Mercedes"
-                    onclick="setTeam(0x00d2be, this, 'Mercedes')"
-                ></button>
-                <button
-                    class="team-btn selected"
-                    style="background: #ff8700"
-                    title="McLaren"
-                    onclick="setTeam(0xff8700, this, 'McLaren')"
-                ></button>
-                <button
-                    class="team-btn"
-                    style="background: #006f62"
-                    title="Aston Martin"
-                    onclick="setTeam(0x006f62, this, 'Aston Martin')"
-                ></button>
-                <button
-                    class="team-btn"
-                    style="background: #0090ff"
-                    title="Alpine"
-                    onclick="setTeam(0x0090ff, this, 'Alpine')"
-                ></button>
-                <button
-                    class="team-btn"
-                    style="background: #005aff"
-                    title="Williams"
-                    onclick="setTeam(0x005aff, this, 'Williams')"
-                ></button>
-                <span
-                    id="team-name-display"
-                    style="color: #aaa; font-family: monospace; font-size: 12px; min-width: 90px; margin-left: 5px"
-                    >McLaren</span
-                >
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">TYRES</span>
-                <button id="start-tyre-s" class="tyre-opt-btn" onclick="setStartTyre(0)" style="background: #222; color: #eb2f06; border: 2px solid #eb2f06;">S</button>
-                <button id="start-tyre-m" class="tyre-opt-btn" onclick="setStartTyre(1)" style="background: #f1c40f; color: #000; border: 2px solid #f1c40f; box-shadow: 0 0 10px #f1c40f;">M</button>
-                <button id="start-tyre-h" class="tyre-opt-btn" onclick="setStartTyre(2)" style="background: #222; color: #f5f6fa; border: 2px solid #f5f6fa;">H</button>
-                <button id="start-tyre-r" class="tyre-opt-btn" onclick="setStartTyre(3)" style="background: #222; color: #2ecc71; border: 2px solid #2ecc71;">R</button>
-                <button id="start-tyre-nowear" class="tyre-opt-btn" onclick="setStartTyre(-1)" style="background: #222; color: #3498db; border: 2px solid #3498db; font-size: 11px;">NO WEAR</button>
-            </div>
-            <!-- Tyre description card -->
-            <div class="menu-row" style="margin-top: -2px; margin-bottom: 8px;">
-                <div id="tyre-desc-card" style="background: rgba(0, 0, 0, 0.45); padding: 8px 16px; border-radius: 8px; font-size: 11px; color: #bbb; min-width: 330px; text-align: center; border: 1px solid rgba(255,255,255,0.08); box-shadow: inset 0 0 10px rgba(0,0,0,0.5); font-family: monospace;">
-                    MEDIUM COMPOUND SELECTED (Grip: ★★★★☆ | Life: ★★★☆☆)
+            <details class="menu-group" open>
+                <summary>RACE SETUP</summary>
+                <div class="menu-group-body">
+                    <div class="menu-row">
+                        <span class="row-label">MODE</span>
+                        <button class="opt-btn selected" id="mode-single" onclick="setMode('single', this)">SINGLE GP</button>
+                        <button class="opt-btn" id="mode-season" onclick="setMode('season', this)">SEASON</button>
+                    </div>
+                    <div id="row-seed" class="menu-row" style="flex-direction: column; gap: 4px">
+                        <div class="menu-row">
+                            <span style="color: #aaa; font-size: 12px; letter-spacing: 2px">CIRCUIT SEED</span>
+                            <input type="text" id="seed-input" value="MONZA" maxlength="12" />
+                            <button class="opt-btn" onclick="randomizeSeed()">RANDOM</button>
+                        </div>
+                        <div style="color: #666; font-size: 10px; letter-spacing: 1px; text-align: center; max-width: 360px">
+                            REAL CIRCUITS: MONZA &middot; SPA &middot; MONACO &middot; SILVERSTONE &middot; INTERLAGOS &middot;
+                            SUZUKA &middot; COTA &middot; ZANDVOORT &middot; BAKU &middot; SINGAPORE
+                        </div>
+                    </div>
+                    <div id="row-races" class="menu-row" style="display: none">
+                        <span class="row-label">RACES</span>
+                        <button class="opt-btn selected" onclick="setRaces(3, this)">3</button>
+                        <button class="opt-btn" onclick="setRaces(5, this)">5</button>
+                        <button class="opt-btn" onclick="setRaces(10, this)">10</button>
+                    </div>
+                    <div class="menu-row">
+                        <span class="row-label">DRIVER</span>
+                        <input
+                            type="text"
+                            id="driver-name-input"
+                            value=""
+                            maxlength="12"
+                            placeholder="PLAYER"
+                            style="width: 140px; font-size: 14px"
+                        />
+                    </div>
+                    <div class="menu-row">
+                        <span class="row-label">TEAM</span>
+                        <button
+                            class="team-btn"
+                            style="background: #dc0000"
+                            title="Ferrari"
+                            onclick="setTeam(0xdc0000, this, 'Ferrari')"
+                        ></button>
+                        <button
+                            class="team-btn"
+                            style="background: #000080"
+                            title="Red Bull"
+                            onclick="setTeam(0x000080, this, 'Red Bull')"
+                        ></button>
+                        <button
+                            class="team-btn"
+                            style="background: #00d2be"
+                            title="Mercedes"
+                            onclick="setTeam(0x00d2be, this, 'Mercedes')"
+                        ></button>
+                        <button
+                            class="team-btn selected"
+                            style="background: #ff8700"
+                            title="McLaren"
+                            onclick="setTeam(0xff8700, this, 'McLaren')"
+                        ></button>
+                        <button
+                            class="team-btn"
+                            style="background: #006f62"
+                            title="Aston Martin"
+                            onclick="setTeam(0x006f62, this, 'Aston Martin')"
+                        ></button>
+                        <button
+                            class="team-btn"
+                            style="background: #0090ff"
+                            title="Alpine"
+                            onclick="setTeam(0x0090ff, this, 'Alpine')"
+                        ></button>
+                        <button
+                            class="team-btn"
+                            style="background: #005aff"
+                            title="Williams"
+                            onclick="setTeam(0x005aff, this, 'Williams')"
+                        ></button>
+                        <button
+                            class="team-btn"
+                            style="background: #b6babd"
+                            title="Haas"
+                            onclick="setTeam(0xb6babd, this, 'Haas')"
+                        ></button>
+                        <button
+                            class="team-btn"
+                            style="background: #6692ff"
+                            title="Racing Bulls"
+                            onclick="setTeam(0x6692ff, this, 'Racing Bulls')"
+                        ></button>
+                        <button
+                            class="team-btn"
+                            style="background: #bb0000"
+                            title="Audi"
+                            onclick="setTeam(0xbb0000, this, 'Audi')"
+                        ></button>
+                        <button
+                            class="team-btn"
+                            style="background: #1a1a1a"
+                            title="Cadillac"
+                            onclick="setTeam(0x1a1a1a, this, 'Cadillac')"
+                        ></button>
+                        <span id="team-name-display" class="team-name-display">McLaren</span>
+                    </div>
                 </div>
-            </div>
-            <div id="row-seed" class="menu-row" style="flex-direction: column; gap: 4px">
-                <div class="menu-row">
-                    <span style="color: #aaa; font-size: 12px; letter-spacing: 2px">CIRCUIT SEED</span>
-                    <input type="text" id="seed-input" value="MONZA" maxlength="12" />
-                    <button class="opt-btn" onclick="randomizeSeed()">RANDOM</button>
+            </details>
+
+            <details class="menu-group" open>
+                <summary>CAR &amp; TYRES</summary>
+                <div class="menu-group-body">
+                    <div class="menu-row">
+                        <span class="row-label">CLASS</span>
+                        <button class="opt-btn selected" id="class-f1" onclick="setClass('f1', this)">F1</button>
+                        <button class="opt-btn" id="class-mini" onclick="setClass('mini', this)">MINI</button>
+                        <button class="opt-btn" id="class-rally" onclick="setClass('rally', this)">RALLY</button>
+                        <button class="opt-btn" id="class-drift" onclick="setClass('drift', this)">DRIFT</button>
+                    </div>
+                    <div class="menu-row">
+                        <span class="row-label">STYLE</span>
+                        <button class="opt-btn selected" onclick="setStyle('f1', this)">F1</button>
+                        <button class="opt-btn" onclick="setStyle('rally', this)">RALLY</button>
+                    </div>
+                    <div class="menu-row" id="row-surface" style="display: none">
+                        <span class="row-label">SURFACE</span>
+                        <button class="opt-btn selected" onclick="setSurface('tarmac', this)">TARMAC</button>
+                        <button class="opt-btn" onclick="setSurface('snow', this)">SNOW</button>
+                        <button class="opt-btn" onclick="setSurface('mud', this)">MUD</button>
+                    </div>
+                    <div class="menu-row">
+                        <span class="row-label">TYRES</span>
+                        <button id="start-tyre-s" class="tyre-opt-btn" onclick="setStartTyre(0)" style="background: #222; color: #eb2f06; border: 2px solid #eb2f06;">S</button>
+                        <button id="start-tyre-m" class="tyre-opt-btn" onclick="setStartTyre(1)" style="background: #f1c40f; color: #000; border: 2px solid #f1c40f; box-shadow: 0 0 10px #f1c40f;">M</button>
+                        <button id="start-tyre-h" class="tyre-opt-btn" onclick="setStartTyre(2)" style="background: #222; color: #f5f6fa; border: 2px solid #f5f6fa;">H</button>
+                        <button id="start-tyre-r" class="tyre-opt-btn" onclick="setStartTyre(3)" style="background: #222; color: #2ecc71; border: 2px solid #2ecc71;">R</button>
+                        <button id="start-tyre-nowear" class="tyre-opt-btn" onclick="setStartTyre(-1)" style="background: #222; color: #3498db; border: 2px solid #3498db; font-size: 11px;">NO WEAR</button>
+                    </div>
+                    <div class="menu-row" style="margin-top: -2px; margin-bottom: 8px;">
+                        <div id="tyre-desc-card" class="tyre-desc-card">
+                            MEDIUM COMPOUND SELECTED (Grip: ★★★★☆ | Life: ★★★☆☆)
+                        </div>
+                    </div>
                 </div>
-                <div style="color: #666; font-size: 10px; letter-spacing: 1px; text-align: center; max-width: 360px">
-                    REAL CIRCUITS: MONZA &middot; SPA &middot; MONACO &middot; SILVERSTONE &middot; INTERLAGOS &middot;
-                    SUZUKA &middot; COTA &middot; ZANDVOORT &middot; BAKU &middot; SINGAPORE
+            </details>
+
+            <details class="menu-group">
+                <summary>RACE OPTIONS</summary>
+                <div class="menu-group-body">
+                    <div class="menu-row">
+                        <span class="row-label">CARS</span>
+                        <button class="opt-btn" onclick="setCars(6, this)">6</button>
+                        <button class="opt-btn" onclick="setCars(10, this)">10</button>
+                        <button class="opt-btn selected" onclick="setCars(12, this)">12</button>
+                        <button class="opt-btn" onclick="setCars(22, this)">22</button>
+                    </div>
+                    <div class="menu-row">
+                        <span class="row-label">AI</span>
+                        <button class="opt-btn" onclick="setDifficulty('easy', this)">EASY</button>
+                        <button class="opt-btn" onclick="setDifficulty('medium', this)">MED</button>
+                        <button class="opt-btn selected" onclick="setDifficulty('hard', this)">HARD</button>
+                        <button class="opt-btn" onclick="setDifficulty('rival', this)">RIVAL</button>
+                    </div>
+                    <div class="menu-row">
+                        <span class="row-label">LAPS</span>
+                        <button class="opt-btn selected" onclick="setLaps(3, this)">3</button>
+                        <button class="opt-btn" onclick="setLaps(5, this)">5</button>
+                        <button class="opt-btn" onclick="setLaps(10, this)">10</button>
+                    </div>
+                    <div class="menu-row">
+                        <span class="row-label">ZOOM</span>
+                        <button class="opt-btn" onclick="setZoom(0, this)">CLOSE</button>
+                        <button class="opt-btn selected" onclick="setZoom(1, this)">MID</button>
+                        <button class="opt-btn" onclick="setZoom(2, this)">FAR</button>
+                    </div>
+                    <div class="menu-row">
+                        <span class="row-label">TIME</span>
+                        <button class="opt-btn selected" onclick="setTime('day', this)">DAY</button>
+                        <button class="opt-btn" onclick="setTime('sunset', this)">SUNSET</button>
+                    </div>
+                    <div class="menu-row">
+                        <span class="row-label">WEATHER</span>
+                        <button class="opt-btn selected" onclick="setWeather('dry', this)">DRY</button>
+                        <button class="opt-btn" onclick="setWeather('wet', this)">WET</button>
+                    </div>
+                    <div class="menu-row">
+                        <span class="row-label">QUALIFY</span>
+                        <button class="opt-btn" onclick="setQualifying(true, this)">ON</button>
+                        <button class="opt-btn selected" onclick="setQualifying(false, this)">OFF</button>
+                    </div>
+                    <div class="menu-row">
+                        <span class="row-label">CONTROLS</span>
+                        <button class="opt-btn" onclick="setControlStyle('manual', this)">MANUAL</button>
+                        <button class="opt-btn selected" onclick="setControlStyle('auto', this)">AUTO ACCEL</button>
+                    </div>
                 </div>
-            </div>
-            <div id="row-races" class="menu-row" style="display: none">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">RACES</span>
-                <button class="opt-btn selected" onclick="setRaces(3, this)">3</button>
-                <button class="opt-btn" onclick="setRaces(5, this)">5</button>
-                <button class="opt-btn" onclick="setRaces(10, this)">10</button>
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">CARS</span>
-                <button class="opt-btn" onclick="setCars(6, this)">6</button>
-                <button class="opt-btn" onclick="setCars(10, this)">10</button>
-                <button class="opt-btn selected" onclick="setCars(12, this)">12</button>
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">AI</span>
-                <button class="opt-btn" onclick="setDifficulty('easy', this)">EASY</button>
-                <button class="opt-btn" onclick="setDifficulty('medium', this)">MED</button>
-                <button class="opt-btn selected" onclick="setDifficulty('hard', this)">HARD</button>
-                <button class="opt-btn" onclick="setDifficulty('rival', this)">RIVAL</button>
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">ZOOM</span>
-                <button class="opt-btn" onclick="setZoom(0, this)">CLOSE</button>
-                <button class="opt-btn selected" onclick="setZoom(1, this)">MID</button>
-                <button class="opt-btn" onclick="setZoom(2, this)">FAR</button>
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">LAPS</span>
-                <button class="opt-btn selected" onclick="setLaps(3, this)">3</button>
-                <button class="opt-btn" onclick="setLaps(5, this)">5</button>
-                <button class="opt-btn" onclick="setLaps(10, this)">10</button>
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">TIME</span>
-                <button class="opt-btn selected" onclick="setTime('day', this)">DAY</button>
-                <button class="opt-btn" onclick="setTime('sunset', this)">SUNSET</button>
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">WEATHER</span>
-                <button class="opt-btn selected" onclick="setWeather('dry', this)">DRY</button>
-                <button class="opt-btn" onclick="setWeather('wet', this)">WET</button>
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">QUALIFY</span>
-                <button class="opt-btn" onclick="setQualifying(true, this)">ON</button>
-                <button class="opt-btn selected" onclick="setQualifying(false, this)">OFF</button>
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">F1 RULES</span>
-                <button class="opt-btn" onclick="setStewardPenalties(true, this)">ON</button>
-                <button class="opt-btn selected" onclick="setStewardPenalties(false, this)">OFF</button>
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">TRACK LIMITS</span>
-                <button class="opt-btn" onclick="setTrackLimits(true, this)">ON</button>
-                <button class="opt-btn selected" onclick="setTrackLimits(false, this)">OFF</button>
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">DAMAGE</span>
-                <button class="opt-btn" onclick="setDamageEnabled(true, this)">ON</button>
-                <button class="opt-btn selected" onclick="setDamageEnabled(false, this)">OFF</button>
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">CONTROLS</span>
-                <button class="opt-btn" onclick="setControlStyle('manual', this)">MANUAL</button>
-                <button class="opt-btn selected" onclick="setControlStyle('auto', this)">AUTO ACCEL</button>
-            </div>
-            <div class="menu-row">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">STYLE</span>
-                <button class="opt-btn selected" onclick="setStyle('f1', this)">F1</button>
-                <button class="opt-btn" onclick="setStyle('rally', this)">RALLY</button>
-            </div>
-            <div class="menu-row" id="row-surface" style="display: none">
-                <span style="color: #aaa; width: 60px; text-align: right; font-size: 12px">SURFACE</span>
-                <button class="opt-btn selected" onclick="setSurface('tarmac', this)">TARMAC</button>
-                <button class="opt-btn" onclick="setSurface('snow', this)">SNOW</button>
-                <button class="opt-btn" onclick="setSurface('mud', this)">MUD</button>
-            </div>
+            </details>
+
+            <details class="menu-group">
+                <summary>RULES &amp; DAMAGE</summary>
+                <div class="menu-group-body">
+                    <div class="menu-row">
+                        <span class="row-label">F1 RULES</span>
+                        <button class="opt-btn" onclick="setStewardPenalties(true, this)">ON</button>
+                        <button class="opt-btn selected" onclick="setStewardPenalties(false, this)">OFF</button>
+                    </div>
+                    <div class="menu-row">
+                        <span class="row-label">TRACK LIMITS</span>
+                        <button class="opt-btn" onclick="setTrackLimits(true, this)">ON</button>
+                        <button class="opt-btn selected" onclick="setTrackLimits(false, this)">OFF</button>
+                    </div>
+                    <div class="menu-row">
+                        <span class="row-label">DAMAGE</span>
+                        <button class="opt-btn" onclick="setDamageEnabled(true, this)">ON</button>
+                        <button class="opt-btn selected" onclick="setDamageEnabled(false, this)">OFF</button>
+                    </div>
+                </div>
+            </details>
+
             <button id="start-btn" onclick="startGame()">ENTER COCKPIT</button>
             <button id="guide-btn" onclick="showGuide()">HOW TO PLAY</button>
+          </div>
         </div>
 
         <div id="guide-screen">
+          <div class="guide-inner">
             <h1>RACE MANUAL</h1>
             <div class="guide-content">
                 <div class="guide-section">
@@ -227,6 +273,7 @@
                 </div>
             </div>
             <button class="menu-btn" onclick="hideGuide()">CLOSE</button>
+          </div>
         </div>
 
         <div id="finish-screen">
@@ -278,7 +325,7 @@
             </div>
             <div id="countdown"></div>
             <div id="pit-msg"></div>
-            <div id="pit-selection-modal" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(10px); padding: 20px 25px; border-radius: 16px; border: 2px solid #e74c3c; box-shadow: 0 15px 45px rgba(0,0,0,0.8); text-align: center; color: white; z-index: 999; width: 330px; pointer-events: auto; font-family: sans-serif;">
+            <div id="pit-selection-modal" style="display: none; position: absolute; top: 50%; left: 50%; background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(10px); padding: 20px 25px; border-radius: 16px; border: 2px solid #e74c3c; box-shadow: 0 15px 45px rgba(0,0,0,0.8); text-align: center; color: white; z-index: 999; width: 330px; pointer-events: auto; font-family: sans-serif;">
                 <h3 style="margin: 0 0 5px 0; letter-spacing: 2px; color: #e74c3c; font-size: 18px; font-weight: 800;">PIT STOP</h3>
                 <div style="font-size: 12px; margin-bottom: 15px; color: #aaa; letter-spacing: 0.5px;">CONFIRM TYRE COMPOUND FOR NEXT STINT</div>
                 <div style="display: flex; justify-content: center; gap: 8px; margin-bottom: 18px;">
@@ -289,6 +336,7 @@
                 </div>
                 <div id="pit-repair-section" style="display: none; margin-bottom: 15px;">
                     <div style="font-size: 12px; margin-bottom: 8px; color: #aaa; letter-spacing: 0.5px;">SELECT DAMAGE REPAIRS</div>
+                    <button id="pit-repair-all-btn" class="pit-repair-all-btn" onclick="toggleAllRepairs()">REPAIR ALL</button>
                     <div id="pit-repair-frontWing" class="pit-repair-row" onclick="togglePitRepairZone('frontWing')" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; margin-bottom: 4px; border-radius: 6px; border: 2px solid #444; cursor: pointer; font-size: 12px;">
                         <span>FRONT WING</span><span id="pit-repair-frontWing-health"></span>
                     </div>
@@ -300,6 +348,7 @@
                     </div>
                 </div>
                 <button id="pit-confirm-btn" onclick="confirmPitStop()" style="background: #2ecc71; color: white; border: none; padding: 10px 30px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; width: 100%; box-shadow: 0 4px 10px rgba(46, 204, 113, 0.4); transition: transform 0.1s;">CONFIRM & RELEASE</button>
+                <div class="pit-kbd-hint">1-4 TYRE &middot; R REPAIR ALL &middot; ENTER CONFIRM</div>
             </div>
             <div id="reset-bar"><div id="reset-progress"></div></div>
             <div id="leaderboard-hud"></div>

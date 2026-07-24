@@ -7,11 +7,15 @@ export const TYRE_COMPOUNDS = [
 
 export const TYRE_COLORS = [0xeb2f06, 0xf1c40f, 0xf5f6fa, 0x2ecc71];
 
-// AI roster in 2026 drivers' championship order (after the British GP, round 9/22,
-// July 2026). `performance` scales AI top speed/cornering in cars.js — keep values
-// inside the historical 0.96–1.04 spread or the field spreads out absurdly.
+// Full 2026 grid, all 11 teams/22 drivers (verified against current lineups, not
+// mid-season points - "performance" below is a gameplay-balance approximation, not a
+// standings claim). `performance` scales AI top speed/cornering in cars.js — keep
+// values inside roughly a 0.93-1.04 spread or the field spreads out absurdly.
+// Only the first cfg.opponents-1 entries are used for any given race (see the
+// aiCount loop in main.js's init-game handler), so this array's order also decides
+// who gets dropped first on a smaller CARS setting - front-runners are kept first.
 export const AI_DRIVERS = [
-    { name: 'Antonelli', color: 0x00d2be, performance: 1.04 }, // Mercedes, leader
+    { name: 'Antonelli', color: 0x00d2be, performance: 1.04 }, // Mercedes
     { name: 'Russell', color: 0x00d2be, performance: 1.03 }, // Mercedes
     { name: 'Hamilton', color: 0xdc0000, performance: 1.03 }, // Ferrari
     { name: 'Leclerc', color: 0xdc0000, performance: 1.02 }, // Ferrari
@@ -19,9 +23,20 @@ export const AI_DRIVERS = [
     { name: 'Piastri', color: 0xff8700, performance: 1.0 }, // McLaren
     { name: 'Verstappen', color: 0x000080, performance: 1.0 }, // Red Bull
     { name: 'Hadjar', color: 0x000080, performance: 0.99 }, // Red Bull
+    { name: 'Sainz', color: 0x005aff, performance: 0.99 }, // Williams
+    { name: 'Alonso', color: 0x006f62, performance: 0.99 }, // Aston Martin
     { name: 'Gasly', color: 0x0090ff, performance: 0.98 }, // Alpine
+    { name: 'Albon', color: 0x005aff, performance: 0.98 }, // Williams
     { name: 'Lawson', color: 0x6692ff, performance: 0.97 }, // Racing Bulls
+    { name: 'Hulkenberg', color: 0xbb0000, performance: 0.97 }, // Audi
+    { name: 'Perez', color: 0x1a1a1a, performance: 0.97 }, // Cadillac
     { name: 'Bearman', color: 0xb6babd, performance: 0.96 }, // Haas
+    { name: 'Ocon', color: 0xb6babd, performance: 0.96 }, // Haas
+    { name: 'Stroll', color: 0x006f62, performance: 0.95 }, // Aston Martin
+    { name: 'Colapinto', color: 0x0090ff, performance: 0.95 }, // Alpine
+    { name: 'Bottas', color: 0x1a1a1a, performance: 0.95 }, // Cadillac
+    { name: 'Bortoleto', color: 0xbb0000, performance: 0.94 }, // Audi
+    { name: 'Lindblad', color: 0x6692ff, performance: 0.93 }, // Racing Bulls
 ];
 
 // Driving personalities (js/cars.js assigns one per AI by roster id % length, so it's
